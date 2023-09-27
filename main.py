@@ -26,7 +26,7 @@ def get_args_parser():
     parser.add_argument('--raw-data-dir', default='./data/', type=str)
     parser.add_argument('--train-split', default=0.9, type=float)
     parser.add_argument('--val-split', default=0.0, type=float)
-    parser.add_argument('--dataset', default='human', choices=['dude', 'human', 'ibm', 'bindingdb', 'kiba', 'davis'],
+    parser.add_argument('--dataset', default='celegans', choices=['dude', 'celegans', 'human', 'ibm', 'bindingdb', 'kiba', 'davis'],
                         type=str, help='Image Net dataset path')
     parser.add_argument('--df-dir', default='./data/', type=str)
     parser.add_argument('--processed-file-dir', default='./data/processed/', type=str)
@@ -117,7 +117,7 @@ def main(args):
 
     dataset_train, dataset_val, dataset_test = build_dataset(config=config)
 
-    data_loader_train = DataLoader(dataset_train, drop_last=True, batch_size=64, shuffle=True,
+    data_loader_train = DataLoader(dataset_train, drop_last=True, batch_size=32, shuffle=True,
                                    num_workers=6, pin_memory=True, collate_fn=collate_wrapper)
     data_loader_val = DataLoader(dataset_val, drop_last=False, batch_size=32,
                                  num_workers=6, pin_memory=False, collate_fn=collate_wrapper)
@@ -126,11 +126,11 @@ def main(args):
     model = PerceiverIODTI()
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.03)
     criterion = torch.nn.BCELoss()
-    scheduler = ExponentialLR(optimizer, gamma=0.98)
+    scheduler = ExponentialLR(optimizer, gamma=0.95)
     device = torch.device(0)
     model.to(device)
     epochs = 200
-    accum_iter = 1
+    accum_iter = 4
     # test_func(model, data_loader_val, device)
     for epoch in range(epochs):
         losses = []
@@ -138,7 +138,7 @@ def main(args):
         model.train()
         with tqdm(data_loader_train) as tepoch:
             tepoch.set_description(f"Epoch {epoch}")
-            for (inp, target) in tepoch:
+            for batch_idx, (inp, target) in enumerate(tepoch):
                 outs = []
                 for item in range(len(inp[0])):
                     inpu = (inp[0][item].to(device), inp[1][item].to(device))
@@ -153,15 +153,22 @@ def main(args):
                 accs.append(acc)
                 losses.append(loss.detach().cpu())
                 loss.backward()
-                optimizer.step()
-                optimizer.zero_grad()
+                if ((batch_idx + 1) % accum_iter == 0) or (batch_idx + 1 == len(data_loader_train)):
+                    optimizer.step()
+                    optimizer.zero_grad()
                 acc_mean = np.array(accs).mean()
                 loss_mean = np.array(losses).mean()
                 tepoch.set_postfix(loss=loss_mean, accuracy=100. * acc_mean)
         scheduler.step()
         # test_func(model, data_loader_val, device)
         test_func(model, data_loader_test, device)
-
+        fn = "last_checkpoint_celegans.pt"
+        info_dict = {
+           'epoch': epoch,
+           'net_state': model.state_dict(),
+           'optimizer_state': optimizer.state_dict()
+        }
+        torch.save(info_dict, fn)
 
 
 if __name__ == '__main__':

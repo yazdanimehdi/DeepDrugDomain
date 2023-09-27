@@ -11,34 +11,27 @@ from weight_init import trunc_normal_
 
 class PerceiverIODTI(nn.Module):
     def __init__(self, embed_dim=256, depth=2, num_heads=4, mlp_ratio=4., qkv_bias=True, qk_scale=None, drop_rate=0.,
-                 attn_drop_rate=0., drop_path_rate=0.3, norm_layer=partial(nn.LayerNorm, eps=1e-6), global_pool=None, block_layers=Block,
+                 attn_drop_rate=0., drop_path_rate=0.05, norm_layer=partial(nn.LayerNorm, eps=1e-6), global_pool=None, block_layers=Block,
                  act_layer=nn.GELU, attention_block=Attention, mlp_block=Mlp, cross_att_block=Block_CA, input_stages=2,
-                 output_stages=2, latent_space=100, dpr_constant=True, mlp_ratio_ca=4.0,  drop_rate_ca=0.0, **kwargs):
+                 output_stages=2, latent_space=300, dpr_constant=True, mlp_ratio_ca=6.0,  drop_rate_ca=0.0, **kwargs):
         super().__init__()
         self.embedding_dim = embed_dim
         self.protein_graph_conv = nn.ModuleList()
         # self.protein_graph_conv.append(TAGConv(74, 74, 4))
         # self.protein_graph_conv.append(TAGConv(74, 74, 4))
-        self.protein_graph_conv.append(TAGConv(74, embed_dim // 4, 4))
-        self.protein_graph_conv.append(TAGConv(embed_dim // 4, embed_dim // 2, 4))
+        self.protein_graph_conv.append(TAGConv(74, 74, 4))
+        self.protein_graph_conv.append(TAGConv(74, embed_dim // 2, 4))
         self.protein_graph_conv.append(GATConv(embed_dim // 2, embed_dim, 2))
 
         self.ligand_graph_conv = nn.ModuleList()
 
-        # self.ligand_graph_conv.append(TAGConv(74, 74, 4))
+        self.ligand_graph_conv.append(TAGConv(74, 74, 4))
         self.ligand_graph_conv.append(TAGConv(74, embed_dim // 2, 4))
         self.ligand_graph_conv.append(GATConv(embed_dim // 2, embed_dim, 2))
 
         self.latent_query = nn.Parameter(torch.zeros(1, latent_space, embed_dim))
         dpr = [drop_path_rate for i in range(depth)]
         self.blocks = nn.ModuleList([
-            block_layers(
-                dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer,
-                act_layer=act_layer, Attention_block=attention_block, Mlp_block=mlp_block)
-            for i in range(depth)])
-
-        self.blocks2 = nn.ModuleList([
             block_layers(
                 dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                 drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer,
@@ -87,12 +80,12 @@ class PerceiverIODTI(nn.Module):
         feature_smile = g[1].ndata['h']
         for module in self.protein_graph_conv:
             feature_protein = F.relu(module(g[0], feature_protein))
-            feature_protein = F.dropout(feature_protein, 0.3)
+            feature_protein = F.dropout(feature_protein, 0.05)
             # feature_protein = F.normalize(feature_protein)
 
         for module in self.ligand_graph_conv:
             feature_smile = F.relu(module(g[1], feature_smile))
-            feature_smile = F.dropout(feature_smile, 0.3)
+            feature_smile = F.dropout(feature_smile, 0.05)
             # feature_smile = F.normalize(feature_smile)
 
         pool_ligand = MaxPooling()

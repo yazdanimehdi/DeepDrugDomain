@@ -42,7 +42,7 @@ class DTIData(Dataset):
                     not_available.append(i)
                     continue
                 try:
-                    if pdb != "6g5i" and pdb != "5t0j" and pdb != "5wve":
+                    if pdb != "6g5i" and pdb != "5t0j" and pdb != "5wve" and pdb != "3jif" and pdb != "8ba0":
                         if not os.path.exists(self.pdb_dir + pdb + '.pdb'):
                             pdbl = PDBList()
                             pdbl.retrieve_pdb_file(
