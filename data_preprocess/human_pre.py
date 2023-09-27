@@ -21,7 +21,7 @@ def human_process(config: Config):
             a = item.split()
             smile = a[0]
             sequence = a[1]
-            pdb_code = df.loc[df["sequence"] == sequence]["pdb_id"].item()[:-1]
+            pdb_code = df.loc[df["sequence"] == sequence]["pdb_id"].item()[0:4]
             label = 1 if a[2] == '1' else 0
             train_df = train_df.append({'SMILE': smile, 'PDB': pdb_code, 'TargetSequence': sequence, 'Label': label},
                             ignore_index=True)
@@ -34,7 +34,7 @@ def human_process(config: Config):
             a = item.split()
             smile = a[0]
             sequence = a[1]
-            pdb_code = df.loc[df["sequence"] == sequence]["pdb_id"].item()[:-1]
+            pdb_code = df.loc[df["sequence"] == sequence]["pdb_id"].item()[0:4]
             label = 0 if a[2] == '0' else 1
             val_df = val_df.append({'SMILE': smile, 'PDB': pdb_code, 'TargetSequence': sequence, 'Label': label},
                             ignore_index=True)
@@ -47,7 +47,7 @@ def human_process(config: Config):
             a = item.split()
             smile = a[0]
             sequence = a[1]
-            pdb_code = df.loc[df["sequence"] == sequence]["pdb_id"].item()[:-1]
+            pdb_code = df.loc[df["sequence"] == sequence]["pdb_id"].item()[0:4]
             label = 0 if a[2] == '0' else 1
             test_df = test_df.append({'SMILE': smile, 'PDB': pdb_code, 'TargetSequence': sequence, 'Label': label},
                             ignore_index=True)
