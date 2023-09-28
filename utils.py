@@ -15,6 +15,21 @@ from deepchem.dock import ConvexHullPocketFinder
 import macfrag
 
 
+class ProteinTooBig(Exception):
+    """Exception raised for errors in the input salary.
+
+    Attributes:
+        salary -- input salary which caused the error
+        message -- explanation of the error
+    """
+
+    def __init__(self, size, pdb, message="Protein size is too big to parse"):
+        self.size = size
+        self.pdb = pdb
+        self.message = message
+        super().__init__(self.message + f" {pdb} size is {str(size)}")
+
+
 CHARPROTSET = {
     "A": 1,
     "C": 2,
@@ -93,9 +108,11 @@ node_featurizer = CanonicalAtomFeaturizer(atom_data_field='h')
 
 def process_protein(pdb_file):
     m = Chem.MolFromPDBFile(pdb_file)
+    n2 = m.GetNumAtoms()
+    if n2 >= 50000:
+        raise ProteinTooBig(n2, pdb_file)
     am = GetAdjacencyMatrix(m)
     pockets = pk.find_pockets(pdb_file)
-    n2 = m.GetNumAtoms()
     c2 = m.GetConformers()[0]
     d2 = np.array(c2.GetPositions())
     binding_parts = []

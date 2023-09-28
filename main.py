@@ -118,11 +118,11 @@ def main(args):
     dataset_train, dataset_val, dataset_test = build_dataset(config=config)
 
     data_loader_train = DataLoader(dataset_train, drop_last=True, batch_size=32, shuffle=True,
-                                   num_workers=6, pin_memory=True, collate_fn=collate_wrapper)
-    data_loader_val = DataLoader(dataset_val, drop_last=False, batch_size=32,
-                                 num_workers=6, pin_memory=False, collate_fn=collate_wrapper)
+                                   num_workers=4, pin_memory=False, collate_fn=collate_wrapper)
+    # data_loader_val = DataLoader(dataset_val, drop_last=False, batch_size=32,
+    #                              num_workers=6, pin_memory=False, collate_fn=collate_wrapper)
     data_loader_test = DataLoader(dataset_test, drop_last=False, batch_size=32, collate_fn=collate_wrapper,
-                                  num_workers=6, pin_memory=False)
+                                  num_workers=0, pin_memory=False)
     model = PerceiverIODTI()
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.03)
     criterion = torch.nn.BCELoss()
@@ -130,7 +130,7 @@ def main(args):
     device = torch.device(0)
     model.to(device)
     epochs = 200
-    accum_iter = 4
+    accum_iter = 2
     # test_func(model, data_loader_val, device)
     for epoch in range(epochs):
         losses = []

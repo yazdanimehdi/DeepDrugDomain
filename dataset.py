@@ -9,6 +9,8 @@ from utils import process_protein, process_smile_graph, integer_label_protein
 from tqdm import tqdm
 from Bio.PDB import PDBList
 import pickle
+import subprocess
+from signal import signal, SIGSEGV
 
 
 class DTIData(Dataset):
@@ -42,22 +44,22 @@ class DTIData(Dataset):
                     not_available.append(i)
                     continue
                 try:
-                    if pdb != "6g5i" and pdb != "5t0j" and pdb != "5wve" and pdb != "3jif" and pdb != "8ba0":
-                        if not os.path.exists(self.pdb_dir + pdb + '.pdb'):
-                            pdbl = PDBList()
-                            pdbl.retrieve_pdb_file(
-                                pdb, pdir=self.pdb_dir, overwrite=False, file_format="pdb"
-                            )
-                            # Rename file to .pdb from .ent
-                            os.rename(
-                                self.pdb_dir + "pdb" + pdb + ".ent", self.pdb_dir + pdb + ".pdb"
-                            )
-                            # Assert file has been downloaded
-                            assert any(pdb in s for s in os.listdir(self.pdb_dir))
-                        constructed_graphs = process_protein(self.pdb_dir + pdb + ".pdb")
-                        self.p_graph[pdb] = constructed_graphs
-                    else:
-                        not_available.append(i)
+
+                    if not os.path.exists(self.pdb_dir + pdb + '.pdb'):
+                        pdbl = PDBList(verbose=False)
+                        pdbl.retrieve_pdb_file(
+                            pdb, pdir=self.pdb_dir, overwrite=False, file_format="pdb"
+                        )
+                        # Rename file to .pdb from .ent
+                        os.rename(
+                            self.pdb_dir + "pdb" + pdb + ".ent", self.pdb_dir + pdb + ".pdb"
+                        )
+                        # Assert file has been downloaded
+                        assert any(pdb in s for s in os.listdir(self.pdb_dir))
+
+                    constructed_graphs = process_protein(self.pdb_dir + pdb + ".pdb")
+                    self.p_graph[pdb] = constructed_graphs
+
                 except Exception as e:
                     not_available_pdb.append(pdb)
                     not_available.append(i)
