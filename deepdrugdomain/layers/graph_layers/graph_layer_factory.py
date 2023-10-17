@@ -33,7 +33,7 @@ Attributes:
 from typing import Type
 import torch.nn as nn
 from abc import ABC, abstractmethod
-from deepdrugdomain import BaseFactory
+from deepdrugdomain.utils import BaseFactory
 
 
 class AbstractGraphLayer(nn.Module, ABC):

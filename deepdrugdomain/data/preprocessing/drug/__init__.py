@@ -1,2 +1,1 @@
-from .drug_preprocessor_factory import DrugPreprocessorFactory
 from .smile_to_dgl_graphs_preprocessor import GraphFromSmilePreprocessor

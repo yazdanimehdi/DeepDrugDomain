@@ -9,8 +9,7 @@ from sklearn.metrics import roc_auc_score, average_precision_score, f1_score, pr
 from torch.optim.lr_scheduler import ExponentialLR
 
 from deepdrugdomain.data import DrugProteinDataset
-from deepdrugdomain.dataset import collate_wrapper
-# from deepdrugdomain.build_dataset import build_dataset
+from deepdrugdomain.data.collate import CollateFactory
 from torch.utils.data import DataLoader
 from deepdrugdomain.utils.config import args_to_config
 from pathlib import Path
@@ -154,14 +153,14 @@ def main(args):
         save_directory="data/drugbank/",
         threads=8
     )
-    dataset_train, dataset_test = torch.utils.data.random_split(dataset, [0.8, 0.2])
-    # sampler = torch.utils.data.RandomSampler(dataset_train)
-    # prefetch_sampler = PrefetchSampler(sampler, num_prefetch=4)
-    data_loader_train = DataLoader(dataset_train, batch_size=32, shuffle=True, num_workers=2, pin_memory=True,
-                                   collate_fn=collate_wrapper, drop_last=True)
-    # data_loader_val = DataLoader(dataset_val, drop_last=False, batch_size=32,
-    #                              num_workers=6, pin_memory=False, collate_fn=collate_wrapper)
-    data_loader_test = DataLoader(dataset_test, drop_last=False, batch_size=32, collate_fn=collate_wrapper,
+    dataset_train, dataset_val, dataset_test = torch.utils.data.random_split(dataset, [0.8, 0.1, 0.1])
+    collate_fn = CollateFactory.create("binding_graph_smile_graph")
+    data_loader_train = DataLoader(dataset_train, batch_size=32, shuffle=True, num_workers=4, pin_memory=True,
+                                   collate_fn=collate_fn, drop_last=True)
+
+    data_loader_val = DataLoader(dataset_val, drop_last=False, batch_size=32,
+                                 num_workers=4, pin_memory=False, collate_fn=collate_fn)
+    data_loader_test = DataLoader(dataset_test, drop_last=False, batch_size=32, collate_fn=collate_fn,
                                   num_workers=4, pin_memory=False)
     model = FragXSiteDTI()
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.03)
@@ -171,7 +170,6 @@ def main(args):
     model.to(device)
     epochs = 200
     accum_iter = 2
-    # test_func(model, data_loader_val, device)
     for epoch in range(epochs):
         losses = []
         accs = []
@@ -200,7 +198,7 @@ def main(args):
                 loss_mean = np.array(losses).mean()
                 tepoch.set_postfix(loss=loss_mean, accuracy=100. * acc_mean)
         scheduler.step()
-        # test_func(model, data_loader_val, device)
+        test_func(model, data_loader_val, device)
         test_func(model, data_loader_test, device)
         fn = "last_checkpoint_celegans.pt"
         info_dict = {

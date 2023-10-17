@@ -28,7 +28,7 @@ import torch
 from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
-from deepdrugdomain.layers import Attention, GraphConvLayerFactory, GraphPoolingLayerFactory
+from deepdrugdomain.layers import Attention, GraphLayerFactory
 from typing import Callable, Optional, Sequence
 
 from deepdrugdomain.utils.weight_init import trunc_normal_
@@ -87,6 +87,7 @@ class MultiHeadAttention(nn.Module):
             return o, attention
         else:
             return o
+
 
 class AttentionSiteDTI(nn.Module):
     """
@@ -148,23 +149,23 @@ class AttentionSiteDTI(nn.Module):
         # Initialize protein graph convolution layers
         p_dims = [protein_input_size] + list(protein_graph_conv_dims)
         self.protein_graph_conv = nn.ModuleList([
-            GraphConvLayerFactory.create_layer(protein_graph_conv_layer,
-                                               p_dims[i],
-                                               p_dims[i + 1],
-                                               **kwargs) for i in range(len(p_dims) - 1)])
+            GraphLayerFactory.create(protein_graph_conv_layer,
+                                     p_dims[i],
+                                     p_dims[i + 1],
+                                     **kwargs) for i in range(len(p_dims) - 1)])
 
         # Initialize drug graph convolution layers
 
         l_dims = [ligand_input_size] + list(ligand_graph_conv_dims)
         self.ligand_graph_conv = nn.ModuleList([
-            GraphConvLayerFactory.create_layer(ligand_graph_conv_layer,
-                                               l_dims[i],
-                                               l_dims[i + 1],
-                                               **kwargs) for i in range(len(l_dims) - 1)])
+            GraphLayerFactory.create(ligand_graph_conv_layer,
+                                     l_dims[i],
+                                     l_dims[i + 1],
+                                     **kwargs) for i in range(len(l_dims) - 1)])
 
         # Graph pooling layers
-        self.pool_ligand = GraphPoolingLayerFactory.create_layer(ligand_graph_pooling, **kwargs)
-        self.pool_protein = GraphPoolingLayerFactory.create_layer(protein_graph_pooling, **kwargs)
+        self.pool_ligand = GraphLayerFactory.create(ligand_graph_pooling, **kwargs)
+        self.pool_protein = GraphLayerFactory.create(protein_graph_pooling, **kwargs)
 
         self.protein_conv_dropout = nn.Dropout(protein_conv_dropout_rate)
         self.ligand_conv_dropout = nn.Dropout(ligand_conv_dropout_rate)
@@ -240,13 +241,15 @@ class AttentionSiteDTI(nn.Module):
         ligand_rep = self.pool_ligand(g[1], feature_smile).view(-1, self.embedding_dim)
 
         sequence = torch.cat((ligand_rep, protein_rep), dim=0).view(1, -1, self.embedding_dim)
-        mask = torch.eye(self.sequence_length, dtype=torch.uint8).view(1, self.sequence_length, self.sequence_length).cuda()
+        mask = torch.eye(self.sequence_length, dtype=torch.uint8).view(1, self.sequence_length,
+                                                                       self.sequence_length).cuda()
         mask[0, sequence.size()[1]:self.sequence_length, :] = 0
         mask[0, :, sequence.size()[1]:self.sequence_length] = 0
         mask[0, :, sequence.size()[1] - 1] = 1
         mask[0, sequence.size()[1] - 1, :] = 1
         mask[0, sequence.size()[1] - 1, sequence.size()[1] - 1] = 0
-        sequence = F.pad(input=sequence, pad=(0, 0, 0, self.sequence_length - sequence.size()[1]), mode='constant', value=0)
+        sequence = F.pad(input=sequence, pad=(0, 0, 0, self.sequence_length - sequence.size()[1]), mode='constant',
+                         value=0)
 
         sequence = sequence.permute(1, 0, 2)
 
