@@ -13,10 +13,12 @@ Usage:
     To create a layer using the factory:
         layer = GraphConvLayerFactory.create_layer('custom_layer_name', *args, **kwargs)
 """
+from torch import nn
 
-from factory import GraphConvLayerFactory, AbstractGraphConvLayer
+from .factory import GraphConvLayerFactory, AbstractGraphConvLayer
 import torch
-from dgl.nn.pytorch import GraphConv, TAGConv, GATConv, GINConv
+from dgl.nn.pytorch import GraphConv, TAGConv, GATConv
+import torch.nn.functional as F
 from deepdrugdomain.exceptions import MissingRequiredParameterError
 import warnings
 
@@ -44,7 +46,7 @@ class GCN(AbstractGraphConvLayer):
             'norm': 'both',
             'weights': True,
             'bias': True,
-            'activation': None,
+            'activation': F.relu,
             'allow_zero_in_degree': False
         }  # Default parameter values
 
@@ -99,7 +101,7 @@ class GAT(AbstractGraphConvLayer):
             'attn_drop': 0.,
             'negative_slope': 0.2,
             'residual': False,
-            'activation': None,
+            'activation': F.relu,
             'allow_zero_in_degree': False,
             'bias': True
         }

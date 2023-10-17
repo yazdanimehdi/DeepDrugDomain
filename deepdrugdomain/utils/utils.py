@@ -1,18 +1,15 @@
-from typing import List, Set, Tuple, Union, Optional
-
 import numpy as np
 import logging
 from dgllife.utils import smiles_to_bigraph, CanonicalAtomFeaturizer, atom_type_one_hot, atom_degree_one_hot, \
     atom_implicit_valence_one_hot, atom_formal_charge, atom_num_radical_electrons, atom_hybridization_one_hot, \
     atom_is_aromatic, atom_total_num_H_one_hot, ConcatFeaturizer
 
-from rdkit import Chem
 from rdkit.Chem.rdmolops import GetAdjacencyMatrix
 import torch
 import dgl
 import networkx as nx
 from deepchem.dock import ConvexHullPocketFinder
-import macfrag
+from deepdrugdomain.data.preprocessing.drug.macfrag import *
 
 
 class ProteinTooBig(Exception):
@@ -149,7 +146,7 @@ def process_protein(pdb_file):
 def process_smile_graph(smile, max_block, max_sr, min_frag_atoms):
     mol = Chem.MolFromSmiles(smile)
     if mol is not None:
-        frags = macfrag.MacFrag(mol, maxBlocks=max_block, maxSR=max_sr, asMols=False, minFragAtoms=min_frag_atoms)
+        frags = MacFrag(mol, maxBlocks=max_block, maxSR=max_sr, asMols=False, minFragAtoms=min_frag_atoms)
     else:
         return None
 
