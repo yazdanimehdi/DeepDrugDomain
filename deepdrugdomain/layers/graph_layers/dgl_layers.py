@@ -1,101 +1,73 @@
 """
-Module implementing various graph convolutional layers using the Deep Graph Library (DGL)
-and PyTorch. This module defines GCN, GAT, and TAG layers with custom initialization
-defaults and provides the ability to register these layers for use within a factory
-pattern. It also handles missing parameters through warnings and sets them to default values.
+graph_conv_layers.py
 
-Usage:
-    To define and register a new custom layer:
-        @GraphConvLayerFactory.register_layer('custom_layer_name')
-        class CustomLayer(AbstractGraphConvLayer):
-            # ... rest of the implementation
+This module provides wrapper classes around DGL's graph convolution layers.
+These wrappers are built on top of the factory pattern provided by the GraphLayerFactory.
+It makes instantiating these layers more streamlined and manageable.
 
-    To create a layer using the factory:
-        layer = GraphConvLayerFactory.create_layer('custom_layer_name', *args, **kwargs)
+Example:
+    >>> from deepdrugdomain.layers.graph_layers import GraphLayerFactory
+    >>> gcn_layer = GraphLayerFactory.create('dgl_gcn', in_feat=64, out_feat=128)
+    >>> gat_layer = GraphLayerFactory.create('dgl_gat', in_feat=64, out_feat=128, num_heads=8)
+    >>> tag_layer = GraphLayerFactory.create('dgl_tag', in_feat=64, out_feat=128)
+
+Requirements:
+    - dgl (For DGL's graph convolution layers)
+    - torch (For tensor operations)
+    - deepdrugdomain (For the base factory class and custom exceptions)
 """
-from torch import nn
 
-from .factory import GraphConvLayerFactory, AbstractGraphConvLayer
+from .graph_layer_factory import GraphLayerFactory, AbstractGraphLayer
 import torch
 from dgl.nn.pytorch import GraphConv, TAGConv, GATConv
 import torch.nn.functional as F
-from deepdrugdomain.exceptions import MissingRequiredParameterError
+from deepdrugdomain.utils.exceptions import MissingRequiredParameterError
 import warnings
 
 
-@GraphConvLayerFactory.register_layer('dgl_gcn')
-class GCN(AbstractGraphConvLayer):
+@GraphLayerFactory.register('dgl_gcn')
+class GCN(AbstractGraphLayer):
     """
-    Defines the Graph Convolutional Network (GCN) layer using DGL's GraphConv.
-
-    Attributes:
-        layer (GraphConv): The internal GCN layer from DGL.
+    Wrapper class for DGL's Graph Convolution (GCN) layer.
     """
-
     def __init__(self, in_feat, out_feat, **kwargs):
-        """
-        Initializes the GCN layer.
-
-        Args:
-            in_feat (int): Number of input features.
-            out_feat (int): Number of output features.
-            **kwargs: Additional arguments for the GraphConv layer.
-        """
         super().__init__()
+
+        # Default parameter values
         defaults = {
             'norm': 'both',
             'weights': True,
             'bias': True,
             'activation': F.relu,
             'allow_zero_in_degree': False
-        }  # Default parameter values
+        }
 
-        missing_keys = defaults.keys() - kwargs.keys()  # Identify missing parameters
-
-        for key in missing_keys:
-            warnings.warn(
-                f"'{key}' parameter is missing. Using default value '{defaults[key]}' for the '{self.__class__.__name__}' layer.")
-            kwargs[key] = defaults[key]
+        # Fill in missing parameters with defaults
+        for key, default_val in defaults.items():
+            kwargs.setdefault(key, default_val)
+            if key not in kwargs:
+                warnings.warn(
+                    f"'{key}' parameter is missing. Using default value '{default_val}' for the '{self.__class__.__name__}' layer.")
 
         self.layer = GraphConv(in_feats=in_feat, out_feats=out_feat, **kwargs)
 
     def forward(self, g, features: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass for the GCN layer.
-
-        Args:
-            g (DGLGraph): The input graph.
-            features (torch.Tensor): Node features.
-
-        Returns:
-            torch.Tensor: Output after GCN layer.
-        """
+        """ Pass the graph and its features through the GCN layer. """
         return self.layer(g, features)
 
 
-@GraphConvLayerFactory.register_layer('dgl_gat')
-class GAT(AbstractGraphConvLayer):
+@GraphLayerFactory.register('dgl_gat')
+class GAT(AbstractGraphLayer):
     """
-    Defines the Graph Attention Network (GAT) layer using DGL's GATConv.
-
-    Attributes:
-        layer (GATConv): The internal GAT layer from DGL.
+    Wrapper class for DGL's Graph Attention Network (GAT) layer.
     """
-
     def __init__(self, in_feat, out_feat, **kwargs):
-        """
-        Initializes the GAT layer.
-
-        Args:
-            in_feat (int): Number of input features.
-            out_feat (int): Number of output features.
-            **kwargs: Additional arguments for the GATConv layer.
-        """
         super().__init__()
 
         if 'num_heads' not in kwargs:
             raise MissingRequiredParameterError(self.__class__.__name__, 'num_heads')
 
+        # Default parameter values
         defaults = {
             'feat_drop': 0.,
             'attn_drop': 0.,
@@ -106,54 +78,44 @@ class GAT(AbstractGraphConvLayer):
             'bias': True
         }
 
-        missing_keys = defaults.keys() - kwargs.keys()
-
-        for key in missing_keys:
-            warnings.warn(
-                f"'{key}' parameter is missing. Using default value '{defaults[key]}' for the '{self.__class__.__name__}' layer.")
-            kwargs[key] = defaults[key]
+        # Fill in missing parameters with defaults
+        for key, default_val in defaults.items():
+            kwargs.setdefault(key, default_val)
+            if key not in kwargs:
+                warnings.warn(
+                    f"'{key}' parameter is missing. Using default value '{default_val}' for the '{self.__class__.__name__}' layer.")
 
         self.layer = GATConv(in_feats=in_feat, out_feats=out_feat, **kwargs)
 
     def forward(self, g, features: torch.Tensor) -> torch.Tensor:
+        """ Pass the graph and its features through the GAT layer. """
         return self.layer(g, features)
 
 
-@GraphConvLayerFactory.register_layer('dgl_tag')
-class TAG(AbstractGraphConvLayer):
+@GraphLayerFactory.register('dgl_tag')
+class TAG(AbstractGraphLayer):
     """
-    Defines the Topology Adaptive Graph Convolutional (TAG) network layer using DGL's TAGConv.
-
-    Attributes:
-        layer (TAGConv): The internal TAGConv layer from DGL.
+    Wrapper class for DGL's Topological Adaptive Graph Convolutional (TAG) layer.
     """
-
     def __init__(self, in_feat, out_feat, **kwargs):
-        """
-        Initializes the TAG layer.
-
-        Args:
-            in_feat (int): Number of input features.
-            out_feat (int): Number of output features.
-            **kwargs: Additional arguments for the TAGConv layer.
-        """
         super().__init__()
+
+        # Default parameter values
         defaults = {
             'k': 2,
             'bias': True,
             'activation': None
         }
 
-        missing_keys = defaults.keys() - kwargs.keys()
-
-        for key in missing_keys:
-            warnings.warn(
-                f"'{key}' parameter is missing. Using default value '{defaults[key]}' for the '{self.__class__.__name__}' layer.")
-            kwargs[key] = defaults[key]
+        # Fill in missing parameters with defaults
+        for key, default_val in defaults.items():
+            kwargs.setdefault(key, default_val)
+            if key not in kwargs:
+                warnings.warn(
+                    f"'{key}' parameter is missing. Using default value '{default_val}' for the '{self.__class__.__name__}' layer.")
 
         self.layer = TAGConv(in_feats=in_feat, out_feats=out_feat, **kwargs)
 
     def forward(self, g, features: torch.Tensor) -> torch.Tensor:
+        """ Pass the graph and its features through the TAG layer. """
         return self.layer(g, features)
-
-

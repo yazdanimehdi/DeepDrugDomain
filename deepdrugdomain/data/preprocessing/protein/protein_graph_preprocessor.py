@@ -27,17 +27,15 @@ from deepchem.dock import ConvexHullPocketFinder
 from dgllife.utils import atom_type_one_hot, atom_degree_one_hot, \
     atom_implicit_valence_one_hot, atom_formal_charge, atom_num_radical_electrons, atom_hybridization_one_hot, \
     atom_is_aromatic, atom_total_num_H_one_hot, ConcatFeaturizer
-from deepdrugdomain.data.data_preprocess.base_preprocessor import BasePreprocessor
-from .protein_preprocessing_factory import ProteinPreprocessorFactory
-from deepdrugdomain.exceptions import MissingRequiredParameterError, ProteinTooBig
+from deepdrugdomain.data.preprocessing.base_preprocessor import BasePreprocessor
+from ..factory import PreprocessorFactory
+from deepdrugdomain.utils.exceptions import MissingRequiredParameterError, ProteinTooBig
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem.rdmolops import GetAdjacencyMatrix
 import torch
 import dgl
 import networkx as nx
-
-from deepdrugdomain.data.utils import serialize_dgl_graph_hdf5, deserialize_dgl_graph_hdf5
 
 
 def _atom_feature(atom):
@@ -129,7 +127,7 @@ def _get_constructed_graphs_for_pockets(pockets: list, m: Chem.Mol, am: np.ndarr
     return constructed_graphs
 
 
-@ProteinPreprocessorFactory.register("dgl_graph_from_pocket")
+@PreprocessorFactory.register("dgl_graph_from_protein_pocket")
 class GraphFromPocketPreprocessor(BasePreprocessor):
     """
     Preprocessor to transform protein data into a graph representation using DGL.
@@ -142,7 +140,7 @@ class GraphFromPocketPreprocessor(BasePreprocessor):
     - FragXSiteDTI
 
     Methods:
-    - preprocess: Preprocesses protein data to create the DGL graph.
+    - preprocessing: Preprocesses protein data to create the DGL graph.
     """
 
     def __init__(self, **kwargs):

@@ -1,22 +1,49 @@
 """
-base_preprocessor.py
+Data Preprocessing Utility
+--------------------------
 
-Provides an abstract class for defining preprocessing operations for various data types and a base implementation
-that processes data, shards it, and saves it using the HDF5 format.
+This file contains classes and methods to handle preprocessing tasks for various data sources.
+It provides mechanisms to preprocessing data, shard the processed data, and save and load the preprocessed data from disk.
+Ray parallel processing is integrated to optimize the data processing speed.
+
+Example:
+    >>> from deepdrugdomain.data.preprocessing import BasePreprocessor
+    >>> data = ["sample1", "sample2", "sample3"]
+    >>> class MyPreprocessor(BasePreprocessor):
+    ...     def __init__(self):
+    ...         super(MyPreprocessor, self).__init__()
+    ...     def preprocessing(self, data):
+    ...         return data[::-1]  # For simplicity, we just reverse the string
+    ...
+    >>> preprocessor = MyPreprocessor()
+    >>> info = preprocessor.process_and_get_info(data, "/path/to/save", in_memory=True, num_threads=2, file_prefix="test")
+    >>> loaded_data = preprocessor.load_preprocessed_to_memory(preprocessor.get_saved_path("/path/to/save", "test"))
+
+Classes:
+    - AbstractBasePreprocessor: An abstract base class for all preprocessors. Sets the methods and interfaces to be implemented.
+    - BasePreprocessor: A basic preprocessor implementation that provides utility methods and interfaces to deal with data preprocessing tasks.
+      Note: This class is not intended to be instantiated directly.
+
+Utility Functions:
+    - save_mapping: Saves a given mapping into a JSON file.
+
+Dependencies:
+    - pickle: For data serialization and deserialization.
+    - abc: Abstract base class definitions.
+    - typing: For type hints.
+    - os: Operating system interfaces, e.g., for file path operations.
+    - json: To read and write JSON files.
+    - ray: For parallel processing.
+    - tqdm: A progress bar utility.
 """
-import multiprocessing
+
 import pickle
-import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Union, List, Optional
-import h5py
 import os
-from multiprocessing import Pool, Manager
 import json
-
 import ray
 from tqdm import tqdm
-import logging
 
 
 class AbstractBasePreprocessor(ABC):
@@ -34,7 +61,7 @@ class AbstractBasePreprocessor(ABC):
         Abstract method for preprocessing the given data.
 
         Parameters:
-        - data: The input data to preprocess.
+        - data: The input data to preprocessing.
 
         Returns:
         - Processed data.
@@ -42,13 +69,12 @@ class AbstractBasePreprocessor(ABC):
         pass
 
     @abstractmethod
-    def generate_mapping(self, data: Any, shard_size: Union[int, None]) -> Dict[Any, Any]:
+    def generate_mapping(self, data: Any) -> Dict[Any, Any]:
         """
         Abstract method to generate a mapping between original data and shards.
 
         Parameters:
         - data: The original data.
-        - shard_size: The size of each shard. If None, data isn't sharded.
 
         Returns:
         - Dictionary mapping from data identifier to shard and position.
@@ -56,23 +82,23 @@ class AbstractBasePreprocessor(ABC):
         pass
 
     @abstractmethod
-    def process_and_get_info(self, data: Any, attribute: str, shard_directory: str, shard_size: Union[int, None],
+    def process_and_get_info(self, data: Any, attribute: str, save_directory: str, in_memory: bool,
                              *args, **kwargs) -> Dict[str, Any]:
         """
-        Process the input data and return all relevant details,
-        including preprocessed data, shard information, and mappings.
+            Process and store the input data, then provide details such as the preprocessed data, shard metadata, and mapping indices.
 
-        Parameters:
-        - data: The input data to preprocess.
-        - shard_directory: The directory where shards should be saved.
-        - shard_size: The size of each shard. If None, data isn't sharded.
+            Parameters:
+                data (Any): The raw input data intended for preprocessing.
+                attribute (str): Specifies which attribute of the input data this preprocessor is responsible for.
+                save_directory (str): Path to the directory where the preprocessed data files will be stored.
+                in_memory (bool, optional): A flag to determine whether the preprocessed data should be retained in memory or stored as individual files on disk. Defaults to `False`.
 
-        Returns:
-        - Dictionary with keys:
-          - "preprocessed_data": the processed data
-          - "shard_info": shard-related details (e.g., file paths)
-          - "mapping": dictionary mapping original data to shard and position.
+            Returns:
+                dict: A dictionary containing:
+                    - "preprocessed_data" (Any): The processed data.
+                    - "mapping" (dict): A mapping between the original data entries and their corresponding shard and position details.
         """
+
         pass
 
     @abstractmethod
@@ -201,28 +227,72 @@ def save_mapping(mapping: dict, filename: str) -> None:
         json.dump(mapping, f, ensure_ascii=False, indent=4)
 
 
-class BasePreprocessor(AbstractBasePreprocessor):
+class BasePreprocessor(AbstractBasePreprocessor, ABC):
     """
-    An example implementation of the AbstractBasePreprocessor.
-    Provides basic mechanisms to preprocess data, shard it, and save it using the HDF5 format.
-    """
+        Base class for preprocessing data.
 
+        This class offers essential mechanisms to preprocessing data and either store it in memory or save it
+        individually to files using the pickle format. When data is kept in memory, it can be saved to disk for
+        future use without reprocessing.
+
+        It's recommended to inherit from this class to harness the foundational preprocessing functions.
+        For more tailored preprocessing logic, users can override the methods of this class or inherit
+        from `AbstractBasePreprocessor` and craft the required methods from the outset.
+
+        Direct instantiation of this class is restricted.
+    """
     def __init__(self, **kwargs):
+        """
+           Initialize the BasePreprocessor.
+
+           Parameters:
+               kwargs: Additional keyword arguments.
+        """
         super().__init__()
         self.kwargs = kwargs
         self.none = []
 
+    @abstractmethod
     def preprocess(self, data: Any) -> Any:
-        raise NotImplementedError
+        """
+           Process the data. Needs to be overridden in derived classes.
+
+           Parameters:
+               data (Any): The data to preprocessing.
+
+           Returns:
+               Any: The preprocessed data.
+        """
+        pass
 
     @ray.remote
     def _worker(self, data):
+        """
+           Worker function to preprocessing data in a distributed manner using Ray.
+
+           Parameters:
+               data (Any): The data to preprocessing.
+
+           Returns:
+               Any: The preprocessed data.
+        """
         # This is just a stub, the actual implementation would be in derived classes or can be overridden.
         return self.preprocess(data)
 
     @ray.remote
     def _preprocess_and_save_data_point(self, data_point: Any, base_dir: str, idx: int, prefix: str) -> Optional[str]:
+        """
+           Preprocess a single data point and save it to disk using pickle.
 
+           Parameters:
+               data_point (Any): The data point to preprocessing.
+               base_dir (str): Directory to save the preprocessed data.
+               idx (int): Index of the data point.
+               prefix (str): Prefix for the filename.
+
+           Returns:
+               str or None: Path to the saved file or None if saving or preprocessing failed.
+        """
         processed = self.preprocess(data_point)
         registered_name = self.__class__.__name__
         if processed is not None:
@@ -234,6 +304,16 @@ class BasePreprocessor(AbstractBasePreprocessor):
         return None
 
     def _process(self, futures, data):
+        """
+            Process data items in parallel using Ray.
+
+            Parameters:
+                futures (dict): Dictionary of Ray futures.
+                data (List[Any]): List of data items to process.
+
+            Returns:
+                tuple: A tuple containing all processed data and invalid results.
+        """
         invalid_results = []
         all_processed_data = {}
         for data_item in tqdm(futures, total=len(data), desc=f"Processing"):
@@ -242,11 +322,26 @@ class BasePreprocessor(AbstractBasePreprocessor):
             if processed is None:  # 2. Check if the result is None
                 invalid_results.append(data_item)
 
-        ray.shutdown()
         return all_processed_data, invalid_results
 
     def process_and_get_info(self, data: List[Any], directory: str, in_memory: bool = True,
                              num_threads: int = 4, file_prefix: str = "", *args, **kwargs) -> Dict[Any, Any]:
+        """
+           Process data and retrieve relevant information.
+
+           Parameters:
+               data (List[Any]): Data items to process.
+               directory (str): Directory to save preprocessed data and mapping info.
+               in_memory (bool, optional): Whether to keep preprocessed data in memory or save to disk.
+               num_threads (int, optional): Number of threads for parallel processing using Ray.
+               file_prefix (str, optional): Prefix for saved filenames.
+               *args, **kwargs: Additional arguments.
+
+           Returns:
+               dict: Dictionary containing mapping info and processed data.
+
+        """
+
         ray.init(num_cpus=num_threads)
         registered_name = self.__class__.__name__
         if in_memory:
@@ -267,42 +362,43 @@ class BasePreprocessor(AbstractBasePreprocessor):
             futures = {d: self._preprocess_and_save_data_point.remote(self, d, directory) for d in data}
             all_processed_data, invalid_results = self._process(futures, data)
             self.none = invalid_results
-            save_mapping(all_processed_data, os.path.join(directory, f"{registered_name}_{file_prefix}_mapping_info.json"))
+            save_mapping(all_processed_data,
+                         os.path.join(directory, f"{registered_name}_{file_prefix}_mapping_info.json"))
             ray.shutdown()
             return {'mapping_info': all_processed_data}
 
-    def generate_mapping(self, data: List[Any], shard_size: Union[int, None]) -> Dict[Any, Any]:
+    def generate_mapping(self, data: List[Any]) -> Dict[Any, Any]:
         """
-        Generates a mapping between data items and their shard & index.
+            Generates a mapping between data items and their position.
 
-        Parameters:
-        - data (List[Any]): List of data items.
-        - shard_size (Union[int, None]): The number of data items per shard.
+            Parameters:
+            - data (List[Any]): List of data items.
 
-        Returns:
-        - Dict[Any, Any]: A dictionary mapping each data item to its shard and index.
+            Returns:
+            - Dict[Any, Any]: A dictionary mapping each data item to its position,
+                              setting it to None if it's in the list of unprocessed data.
         """
         mapping = {}
-        shard_id = 0
+
         for idx, item in enumerate(data):
             if item in self.none:
                 mapping[item] = None
             else:
-                if shard_size and idx % shard_size == 0 and idx > 0:
-                    shard_id += 1
-                mapping[item] = shard_id
+                mapping[item] = 0
+
         return mapping
 
     def collect_invalid_data(self, online: bool, data: Optional[List[str]] = None) -> List[str]:
         """
-        Identify and collect data points that result in None after preprocessing.
+            Identify and collect data points that result in None after preprocessing.
 
-        Parameters:
-        - online (bool): If True, the data is processed and checked; if False, the current list of invalid data is returned.
-        - data (Optional[List[str]]): List of data to be checked. Only used if online is True.
+            Parameters:
+            - online (bool): If True, the data is processed and checked; if False,
+                             the current list of invalid data is returned.
+            - data (Optional[List[str]]): List of data to be checked. Only used if online is True.
 
-        Returns:
-        - List[str]: List of data points that are considered invalid or unprocessed.
+            Returns:
+            - List[str]: List of data points that are considered invalid or unprocessed.
         """
         if online and data:
             for d in data:
@@ -313,19 +409,19 @@ class BasePreprocessor(AbstractBasePreprocessor):
 
     def set_invalid_data(self, invalid_data: List[str]) -> None:
         """
-        Set a list of data points that are considered invalid or unprocessed.
+            Set a list of data points that are considered invalid or unprocessed.
 
-        Parameters:
-        - invalid_data (List[str]): List of data points to set as invalid.
-
-        Returns:
-        - None
+            Parameters:
+            - invalid_data (List[str]): List of data points to set as invalid.
         """
+
         self.none = invalid_data
 
     def _serialize_key(self, data: Any) -> Any:
         """
-        Convert the data (key or value) to a format that can be saved in HDF5.
+        Convert the data (key) to a format suitable for saving.
+        For simplicity and due to the use of pickle as the default save mechanism,
+        we don't need to serialize the data, so the data itself is returned.
 
         Parameters:
         - data: The data to be serialized.
@@ -337,7 +433,9 @@ class BasePreprocessor(AbstractBasePreprocessor):
 
     def _serialize_value(self, data: Any) -> Any:
         """
-        Convert the data (value) to a format that can be saved in HDF5.
+        Convert the data (value) to a format suitable for saving.
+        For simplicity and due to the use of pickle as the default save mechanism,
+        we don't need to serialize the data, so the data itself is returned.
 
         Parameters:
         - data: The data to be serialized.
@@ -349,25 +447,29 @@ class BasePreprocessor(AbstractBasePreprocessor):
 
     def _deserialize_key(self, data: Any) -> Any:
         """
-        Convert the data (key) back to its original format.
+        Convert the saved data key back to its original format.
+        As we're using pickle and not performing any special serialization,
+        the original data is directly returned.
 
         Parameters:
-        - data: The data to be deserialized.
+        - data: The data key to be deserialized.
 
         Returns:
-        - Deserialized data.
+        - Deserialized data key.
         """
         return data
 
     def _deserialize_value(self, data: Any) -> Any:
         """
-        Convert the data (value) back to its original format.
+        Convert the saved data value back to its original format.
+        As we're using pickle and not performing any special serialization,
+        the original data is directly returned.
 
         Parameters:
-        - data: The data to be deserialized.
+        - data: The data value to be deserialized.
 
         Returns:
-        - Deserialized data.
+        - Deserialized data value.
         """
         return data
 
@@ -400,7 +502,14 @@ class BasePreprocessor(AbstractBasePreprocessor):
         return loaded_data
 
     def save_preprocessed_to_disk(self, data: Dict[Any, Any], path: str, file_prefix: str) -> None:
+        """
+           Save all the preprocessed data to a single file using pickle.
 
+           Parameters:
+           - data (Dict[Any, Any]): The preprocessed data.
+           - path: The directory where the data should be saved.
+           - file_prefix: Prefix to be added to the filename.
+        """
         registered_name = self.__class__.__name__
         file_name = f"{registered_name}_{file_prefix}_all.pkl"
 
@@ -409,6 +518,15 @@ class BasePreprocessor(AbstractBasePreprocessor):
             pickle.dump(serialized_data, fp)
 
     def load_preprocessed_to_memory(self, path: str) -> Any:
+        """
+            Load all the preprocessed data from a file.
+
+            Parameters:
+            - path: Path to the preprocessed data file.
+
+            Returns:
+            - Dict[Any, Any]: The loaded and deserialized preprocessed data.
+        """
 
         with open(path, "rb") as fp:
             data = pickle.load(fp)
@@ -417,6 +535,17 @@ class BasePreprocessor(AbstractBasePreprocessor):
         return original_data
 
     def get_saved_path(self, path: str, prefix: str) -> Any:
+        """
+            Construct the path of the saved preprocessed data file.
+
+            Parameters:
+            - path: Base directory of the saved file.
+            - prefix: Prefix added to the filename.
+
+            Returns:
+            - str: Full path to the saved file.
+
+        """
         registered_name = self.__class__.__name__
         file_name = f"{registered_name}_{prefix}_all.pkl"
 

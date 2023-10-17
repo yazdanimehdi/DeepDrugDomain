@@ -2,18 +2,19 @@ from functools import partial
 
 from dgl.nn.pytorch import GATConv, MaxPooling, TAGConv
 
-from layers import Block_CA, Block, Attention, Attention_CA, Mlp
+from ..layers import Block_CA, Block, Attention, Mlp
 import torch
 from torch import nn
 import torch.nn.functional as F
-from weight_init import trunc_normal_
+from deepdrugdomain.utils.weight_init import trunc_normal_
 
 
 class FragXSiteDTI(nn.Module):
     def __init__(self, embed_dim=256, depth=2, num_heads=4, mlp_ratio=4., qkv_bias=True, qk_scale=None, drop_rate=0.,
-                 attn_drop_rate=0., drop_path_rate=0.05, norm_layer=partial(nn.LayerNorm, eps=1e-6), global_pool=None, block_layers=Block,
+                 attn_drop_rate=0., drop_path_rate=0.05, norm_layer=partial(nn.LayerNorm, eps=1e-6), global_pool=None,
+                 block_layers=Block,
                  act_layer=nn.GELU, attention_block=Attention, mlp_block=Mlp, cross_att_block=Block_CA, input_stages=2,
-                 output_stages=2, latent_space=300, dpr_constant=True, mlp_ratio_ca=6.0,  drop_rate_ca=0.0, **kwargs):
+                 output_stages=2, latent_space=200, dpr_constant=True, mlp_ratio_ca=6.0,  drop_rate_ca=0.0, **kwargs):
         super().__init__()
         self.embedding_dim = embed_dim
         self.protein_graph_conv = nn.ModuleList()
@@ -25,6 +26,9 @@ class FragXSiteDTI(nn.Module):
 
         self.ligand_graph_conv = nn.ModuleList()
 
+        # self.ligand_graph_conv.append(TAGConv(74, 74, 4))
+        # self.ligand_graph_conv.append(TAGConv(74, 74, 4))
+        # self.ligand_graph_conv.append(TAGConv(74, 74, 4))
         self.ligand_graph_conv.append(TAGConv(74, 74, 4))
         self.ligand_graph_conv.append(TAGConv(74, embed_dim // 2, 4))
         self.ligand_graph_conv.append(GATConv(embed_dim // 2, embed_dim, 2))
@@ -109,7 +113,7 @@ class FragXSiteDTI(nn.Module):
 
         x = self.norm(x)
         x = torch.mean(x, dim=1)
-        return torch.sigmoid(self.head(x)), attn_binding, attn_frag
+        return torch.sigmoid(self.head(x))
 
 
 

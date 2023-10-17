@@ -1,10 +1,10 @@
 import torch
 
-import macfrag
+from deepdrugdomain.data.preprocessing.drug import macfrag
 from dataset import collate_wrapper
 from build_dataset import build_dataset
 from torch.utils.data import DataLoader
-from config import Config
+from deepdrugdomain.utils.config import Config
 from deepdrugdomain.models import PerceiverIODTI
 
 from rdkit import Chem
@@ -18,7 +18,7 @@ data_loader_val = DataLoader(dataset_val, drop_last=False, batch_size=1, collate
                               num_workers=0, pin_memory=False)
 
 model = PerceiverIODTI()
-a = torch.load("last_checkpoint.pt")['net_state']
+a = torch.load("../last_checkpoint.pt")['net_state']
 model.load_state_dict(a)
 device = torch.device(0)
 model.to(device)

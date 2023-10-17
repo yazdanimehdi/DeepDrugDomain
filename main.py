@@ -1,20 +1,21 @@
 import argparse
-import pickle
+from random import shuffle
 
 import numpy as np
+import pandas as pd
 import torch
 from sklearn.metrics import roc_auc_score, average_precision_score, f1_score, precision_score, recall_score, \
     balanced_accuracy_score
 from torch.optim.lr_scheduler import ExponentialLR
 
-from dataset import collate_wrapper
-from build_dataset import build_dataset
+from deepdrugdomain.data import DrugProteinDataset
+from deepdrugdomain.dataset import collate_wrapper
+# from deepdrugdomain.build_dataset import build_dataset
 from torch.utils.data import DataLoader
-from config import args_to_config
-import wandb
+from deepdrugdomain.utils.config import args_to_config
 from pathlib import Path
 from tqdm import tqdm
-from model import PerceiverIODTI
+from deepdrugdomain.models import FragXSiteDTI
 
 
 def get_args_parser():
@@ -24,9 +25,9 @@ def get_args_parser():
     parser.add_argument('--data-path', default='./data/', type=str,
                         help='dataset path')
     parser.add_argument('--raw-data-dir', default='./data/', type=str)
-    parser.add_argument('--train-split', default=0.9, type=float)
-    parser.add_argument('--val-split', default=0.0, type=float)
-    parser.add_argument('--dataset', default='celegans', choices=['dude', 'celegans', 'human', 'ibm', 'bindingdb', 'kiba', 'davis'],
+    parser.add_argument('--train-split', default=1, type=float)
+    parser.add_argument('--val-split', default=0, type=float)
+    parser.add_argument('--dataset', default='drugbank', choices=['dude', 'celegans', 'human', 'drugbank', 'ibm', 'bindingdb', 'kiba', 'davis'],
                         type=str, help='Image Net dataset path')
     parser.add_argument('--df-dir', default='./data/', type=str)
     parser.add_argument('--processed-file-dir', default='./data/processed/', type=str)
@@ -36,7 +37,7 @@ def get_args_parser():
                         help='path where to save, empty for no saving')
     parser.add_argument('--device', default='gpu',
                         help='device to use for training / testing')
-    parser.add_argument('--seed', default=4, type=int)
+    parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
@@ -54,7 +55,7 @@ def get_roce(predList, targetList, roceRate):
     p = sum(targetList)
     n = len(targetList) - p
     predList = [[index, x] for index, x in enumerate(predList)]
-    predList = sorted(predList, key=lambda x:x[1], reverse=True)
+    predList = sorted(predList, key=lambda x: x[1], reverse=True)
     tp1 = 0
     fp1 = 0
     maxIndexs = []
@@ -99,8 +100,8 @@ def test_func(model, dataloader, device):
     print("0.5 re Score " + str(roce1), end=" ")
     print("1 re Score " + str(roce2), end=" ")
     print("2 re Score " + str(roce3), end=" ")
-    print("5 re Score " + str(roce4), end=" ")
-    print("-------------------")
+    print("5 re Score " + str(roce4))
+
 
 def main(args):
     config = args_to_config(args)
@@ -115,18 +116,57 @@ def main(args):
     #     config=config
     # )
 
-    dataset_train, dataset_val, dataset_test = build_dataset(config=config)
+    # dataset_train, dataset_val, dataset_test = build_dataset(config=config)
+    df = pd.read_csv("data/drugbank/drugbankSeqPdb.txt")
+    with open("data/drugbank/DrugBank.txt", 'r') as fp:
+        train_raw = fp.read()
+    raw_data = train_raw.split("\n")
+    shuffle(raw_data)
+    train_df = pd.DataFrame(columns=['SMILE', 'PDB', 'TargetSequence', 'Label'])
+    for item in raw_data:
+        try:
+            a = item.split()
+            smile = a[2]
+            sequence = a[3]
+            pdb_code = df.loc[df["sequence"] == sequence]["pdb_id"].item()[0:4]
+            if pdb_code is not None:
+                label = 1 if a[4] == '1' else 0
+                train_df = train_df.append(
+                    {'SMILE': smile, 'PDB': pdb_code, 'TargetSequence': sequence, 'Label': label},
+                    ignore_index=True)
+        except:
+            pass
 
-    data_loader_train = DataLoader(dataset_train, drop_last=True, batch_size=32, shuffle=True,
-                                   num_workers=4, pin_memory=False, collate_fn=collate_wrapper)
+    # torch.multiprocessing.set_sharing_strategy('file_system')
+    # resource.setrlimit(resource.RLIMIT_NOFILE, (12000, 12000))
+    # os.environ["RAY_memory_monitor_refresh_ms"] = "0"
+    dataset = DrugProteinDataset(
+        train_df,
+        drug_preprocess_type=("dgl_graph_from_smile",
+                              {"fragment": True, "max_block": 6, "max_sr": 8, "min_frag_atom": 1}),
+        drug_attributes="SMILE",
+        online_preprocessing_drug=False,
+        in_memory_preprocessing_drug=True,
+        protein_preprocess_type=("dgl_graph_from_protein_pocket", {"pdb_path": "data/pdb/", "protein_size_limit": 50000}),
+        protein_attributes="PDB",
+        online_preprocessing_protein=False,
+        in_memory_preprocessing_protein=False,
+        save_directory="data/drugbank/",
+        threads=8
+    )
+    dataset_train, dataset_test = torch.utils.data.random_split(dataset, [0.8, 0.2])
+    # sampler = torch.utils.data.RandomSampler(dataset_train)
+    # prefetch_sampler = PrefetchSampler(sampler, num_prefetch=4)
+    data_loader_train = DataLoader(dataset_train, batch_size=32, shuffle=True, num_workers=2, pin_memory=True,
+                                   collate_fn=collate_wrapper, drop_last=True)
     # data_loader_val = DataLoader(dataset_val, drop_last=False, batch_size=32,
     #                              num_workers=6, pin_memory=False, collate_fn=collate_wrapper)
     data_loader_test = DataLoader(dataset_test, drop_last=False, batch_size=32, collate_fn=collate_wrapper,
-                                  num_workers=0, pin_memory=False)
-    model = PerceiverIODTI()
+                                  num_workers=4, pin_memory=False)
+    model = FragXSiteDTI()
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.03)
     criterion = torch.nn.BCELoss()
-    scheduler = ExponentialLR(optimizer, gamma=0.95)
+    scheduler = ExponentialLR(optimizer, gamma=0.98)
     device = torch.device(0)
     model.to(device)
     epochs = 200

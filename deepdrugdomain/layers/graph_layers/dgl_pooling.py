@@ -1,140 +1,78 @@
 """
 graph_pooling_layers.py
 
-Description:
-    This module provides a collection of graph pooling layers designed for deep
-    drug discovery applications. Each layer here is a wrapper around a specific
-    pooling layer provided by the DGL library, with certain enhancements to provide
-    additional functionality, error-checking, or convenience. The layers in this
-    module are intended to be used in graph neural networks to aggregate node
-    features into a unified graph representation.
+This module provides a set of classes that act as wrappers around DGL's graph pooling layers.
+By leveraging the factory pattern provided by the GraphLayerFactory,
+it becomes straightforward to instantiate these layers in a unified manner.
 
-    The pooling layers leverage the `GraphPoolingLayerFactory` for easy registration,
-    instantiation, and management. This also allows external developers to potentially
-    register their own custom pooling layers if needed.
+Example:
+    >>> from deepdrugdomain.layers.graph_layers import GraphLayerFactory
+    >>> max_pool_layer = GraphLayerFactory.create('dgl_maxpool')
+    >>> sum_pool_layer = GraphLayerFactory.create('dgl_sumpool')
+    >>> attention_pool_layer = GraphLayerFactory.create('dgl_attentionpool', gate_nn_dims=[32, 1])
 
-Available Layers:
-    - MaxPoolLayer: Implements max pooling over node features.
-    - SumPoolLayer: Implements sum pooling over node features.
-    - AvgPoolLayer: Implements average pooling over node features.
-    - GlobalAttentionPooling: Implements pooling with global attention mechanism.
-
-Dependencies:
-    - dgl: The Deep Graph Library, used for the base pooling implementations.
-    - torch.nn: PyTorch's neural network module, utilized for creating neural network
-                layers when needed, such as in the attention mechanism.
-
-Usage:
-To define and register a new custom pooling mechanism:
-        @GraphPoolingLayerFactory.register_layer('custom_pooling_name')
-        class CustomPooling(AbstractGraphPoolingLayer):
-            # ... rest of the implementation
-
-    To create a layer using the factory:
-        layer = GraphPoolingLayerFactory.create_layer('custom_pooling_name', **kwargs)
-
+Requirements:
+    - dgl (For DGL's graph pooling layers)
+    - torch (For neural network operations)
+    - deepdrugdomain (For the base factory class and custom exceptions)
 """
 
 import warnings
-
 from dgl.nn.pytorch.glob import MaxPooling, SumPooling, AvgPooling, GlobalAttentionPooling
 import torch.nn as nn
+from deepdrugdomain.utils.exceptions import MissingRequiredParameterError
+from .graph_layer_factory import GraphLayerFactory, AbstractGraphLayer
 
-from deepdrugdomain.exceptions import MissingRequiredParameterError
-from .factory import GraphPoolingLayerFactory, AbstractGraphPoolingLayer
 
-
-@GraphPoolingLayerFactory.register_layer('dgl_maxpool')
-class MaxPoolLayer(AbstractGraphPoolingLayer):
+@GraphLayerFactory.register('dgl_maxpool')
+class MaxPoolLayer(AbstractGraphLayer):
     """
     Wrapper class for DGL's MaxPooling layer.
     """
-
-    def __init__(self, **kwargs):
-        """
-        Initialize the MaxPoolLayer instance.
-        """
+    def __init__(self):
         super().__init__()
         self.layer = MaxPooling()
 
     def forward(self, g, features):
-        """
-        Forward pass for the MaxPooling layer.
-
-        Parameters:
-        - g: A DGL graph.
-        - features: Node features.
-
-        Returns:
-        - Tensor: Pooled graph representation.
-        """
+        """ Perform max pooling on the graph. """
         return self.layer(g, features)
 
 
-@GraphPoolingLayerFactory.register_layer('dgl_sumpool')
-class MaxPoolLayer(AbstractGraphPoolingLayer):
+@GraphLayerFactory.register('dgl_sumpool')
+class SumPoolLayer(AbstractGraphLayer):
     """
     Wrapper class for DGL's SumPooling layer.
     """
-
-    def __init__(self, **kwargs):
-        """
-        Initialize the SumPoolLayer instance.
-        """
+    def __init__(self):
         super().__init__()
         self.layer = SumPooling()
 
     def forward(self, g, features):
-        """
-        Forward pass for the MaxPooling layer.
-
-        Parameters:
-        - g: A DGL graph.
-        - features: Node features.
-
-        Returns:
-        - Tensor: Pooled graph representation.
-        """
+        """ Perform sum pooling on the graph. """
         return self.layer(g, features)
 
 
-@GraphPoolingLayerFactory.register_layer('dgl_avgpool')
-class MaxPoolLayer(AbstractGraphPoolingLayer):
+@GraphLayerFactory.register('dgl_avgpool')
+class AvgPoolLayer(AbstractGraphLayer):
     """
     Wrapper class for DGL's AvgPooling layer.
     """
-
-    def __init__(self, **kwargs):
-        """
-        Initialize the MaxPoolLayer instance.
-        """
+    def __init__(self):
         super().__init__()
         self.layer = AvgPooling()
 
     def forward(self, g, features):
-        """
-        Forward pass for the MaxPooling layer.
-
-        Parameters:
-        - g: A DGL graph.
-        - features: Node features.
-
-        Returns:
-        - Tensor: Pooled graph representation.
-        """
+        """ Perform average pooling on the graph. """
         return self.layer(g, features)
 
 
-@GraphPoolingLayerFactory.register_layer('dgl_attentionpool')
-class MaxPoolLayer(AbstractGraphPoolingLayer):
+@GraphLayerFactory.register('dgl_attentionpool')
+class AttentionPoolLayer(AbstractGraphLayer):
     """
     Wrapper class for DGL's GlobalAttentionPooling layer.
+    This layer uses a gating mechanism to determine node importance.
     """
-
     def __init__(self, **kwargs):
-        """
-        Initialize the MaxPoolLayer instance.
-        """
         super().__init__()
 
         if 'gate_nn_dims' not in kwargs:
@@ -156,14 +94,5 @@ class MaxPoolLayer(AbstractGraphPoolingLayer):
         self.layer = GlobalAttentionPooling(feat_nn=feat_nn, gate_nn=gate_nn)
 
     def forward(self, g, features):
-        """
-        Forward pass for the MaxPooling layer.
-
-        Parameters:
-        - g: A DGL graph.
-        - features: Node features.
-
-        Returns:
-        - Tensor: Pooled graph representation.
-        """
+        """ Perform attention pooling on the graph. """
         return self.layer(g, features)

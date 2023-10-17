@@ -1,38 +1,11 @@
-"""
-dgl_graph_from_smiles.py
-
-This module provides utilities and classes for preprocessing SMILES strings and converting them into DGLGraph objects.
-It supports two modes of conversion:
-1. Fragmentation of the SMILES string using the MacFrag tool, followed by graph construction for each fragment.
-2. Direct conversion of the whole SMILES string into a graph representation.
-
-Classes included:
-- GraphFromPocketPreprocessor: Preprocessor class to convert SMILES strings into DGLGraph objects.
-
-Utilities:
-- _process_smile_graph: Helper function to process the SMILES string and construct molecular fragments as graphs using the MacFrag method.
-
-Dependencies:
-- dgl
-- pandas
-- dgllife
-- rdkit
-- local modules: macfrag, deepdrugdomain.exceptions, drug_preprocessor_factory, and data.data_preprocess
-
-"""
-
-from typing import Optional, List, Any
-
+from typing import Optional, List
 import dgl
-import pandas as pd
 from dgllife.utils import smiles_to_bigraph, CanonicalAtomFeaturizer
 from rdkit import Chem
-
 from .macfrag import MacFrag
-from deepdrugdomain.exceptions import MissingRequiredParameterError
-from .drug_preprocessor_factory import DrugPreprocessorFactory
+from deepdrugdomain.utils.exceptions import MissingRequiredParameterError
+from ..factory import PreprocessorFactory
 from ..base_preprocessor import BasePreprocessor
-from deepdrugdomain.data.utils import serialize_dgl_graph_hdf5, deserialize_dgl_graph_hdf5
 
 
 def _process_smile_graph(smile: str, max_block: int, max_sr: int, min_frag_atoms: int) -> Optional[List[dgl.DGLGraph]]:
@@ -57,7 +30,7 @@ def _process_smile_graph(smile: str, max_block: int, max_sr: int, min_frag_atoms
     return frags
 
 
-@DrugPreprocessorFactory.register("dgl_graph_from_smile_fragments")
+@PreprocessorFactory.register("dgl_graph_from_smile")
 class GraphFromSmilePreprocessor(BasePreprocessor):
     """
     Preprocessor class to convert SMILES strings to DGLGraph objects.
@@ -102,34 +75,30 @@ class GraphFromSmilePreprocessor(BasePreprocessor):
             max_block = self.kwargs['max_block']
             max_sr = self.kwargs['max_sr']
             min_frag_atom = self.kwargs['min_frag_atom']
-
-        try:
-            if fragment:
+            try:
                 # Use the MacFrag method to fragment the SMILES and then construct a graph for each fragment.
                 frags = _process_smile_graph(smile, max_block, max_sr, min_frag_atom)
                 if frags is None:
                     return None
                 smile_graphs = [smiles_to_bigraph(f, add_self_loop=True, node_featurizer=node_featurizer) for f in frags]
                 constructed_graphs = dgl.batch(smile_graphs)
-            else:
+
+            except Exception as e:
+                constructed_graphs = None
+
+        else:
+            try:
                 # Construct a graph from the entire SMILES molecule.
                 constructed_graphs = smiles_to_bigraph(smile, add_self_loop=True, node_featurizer=node_featurizer)
 
-        except Exception as e:
-            print(e)
-            constructed_graphs = None
+            except Exception as e:
+                print(e)
+                constructed_graphs = None
 
         return constructed_graphs
 
-    # def _serialize_value(self, graph: dgl.DGLGraph) -> dict:
-    #     """
-    #     Serialize the DGL graph using the utility function.
-    #     """
-    #     return serialize_dgl_graph_hdf5(graph)
-    #
-    # def _deserialize_value(self, serialized_graph: dict) -> dgl.DGLGraph:
-    #     """
-    #     Deserialize the serialized DGL graph using the utility function.
-    #     """
-    #     return deserialize_dgl_graph_hdf5(serialized_graph)
-    #
+    def save_data(self, data: dgl.DGLGraph, path: str) -> None:
+        dgl.save_graphs(path, [data])
+
+    def load_data(self, path: str) -> dgl.DGLGraph:
+        return dgl.load_graphs(path)[0][0]

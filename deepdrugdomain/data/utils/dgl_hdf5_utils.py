@@ -1,5 +1,8 @@
+from typing import Union
+
 import networkx as nx
 import dgl
+import numpy as np
 
 
 def serialize_dgl_graph_hdf5(graph: dgl.DGLGraph) -> dict:
@@ -18,6 +21,12 @@ def serialize_dgl_graph_hdf5(graph: dgl.DGLGraph) -> dict:
     - dict: A dictionary containing the graph's serialized components including adjacency matrix,
       node features, edge features, and batch information.
     """
+    if graph is None:
+        serialized_graph = {
+            'adjacency': None
+        }
+        return serialized_graph
+
     netx_graph = dgl.to_networkx(graph)
     adjacency = nx.to_numpy_array(netx_graph)
 
@@ -40,7 +49,7 @@ def serialize_dgl_graph_hdf5(graph: dgl.DGLGraph) -> dict:
     return serialized_graph
 
 
-def deserialize_dgl_graph_hdf5(serialized_graph: dict) -> dgl.DGLGraph:
+def deserialize_dgl_graph_hdf5(serialized_graph: dict) -> Union[dgl.DGLGraph, None]:
     """
     Convert a serialized graph dictionary back into a DGL graph.
 
@@ -54,6 +63,9 @@ def deserialize_dgl_graph_hdf5(serialized_graph: dict) -> dgl.DGLGraph:
     Returns:
     - dgl.DGLGraph: The reconstructed DGL graph object.
     """
+    if np.isnan(serialized_graph['adjacency']):
+        return None
+
     netx_graph = nx.from_numpy_array(serialized_graph['adjacency'])
     graph = dgl.from_networkx(netx_graph)
 

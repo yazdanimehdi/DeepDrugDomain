@@ -4,13 +4,15 @@ from random import shuffle
 import dgl
 import pandas as pd
 import torch
+from rdkit import Chem
 from torch.utils.data import Dataset
-from utils import process_protein, process_smile_graph, integer_label_protein
+from .utils import process_protein, process_smile_graph, integer_label_protein, node_featurizer
 from tqdm import tqdm
 from Bio.PDB import PDBList
 import pickle
 import subprocess
 from signal import signal, SIGSEGV
+from dgllife.utils import smiles_to_bigraph
 
 
 class DTIData(Dataset):
@@ -34,15 +36,11 @@ class DTIData(Dataset):
             self.df = self.df[self.df['SMILE'].isin(self.s_graph.keys())]
 
     def pre_process(self):
-        not_available = []
+        not_available_smile = []
         not_available_pdb = []
-        for i in tqdm(range(len(self.df.index))):
-            smile = self.df.iloc[i]['SMILE']
-            pdb = self.df.iloc[i]['PDB'].lower()
+        for i in tqdm(self.df['PDB'].unique()):
+            pdb = i.lower()
             if pdb not in self.p_graph.keys():
-                if pdb in not_available_pdb:
-                    not_available.append(i)
-                    continue
                 try:
 
                     if not os.path.exists(self.pdb_dir + pdb + '.pdb'):
@@ -62,13 +60,20 @@ class DTIData(Dataset):
 
                 except Exception as e:
                     not_available_pdb.append(pdb)
-                    not_available.append(i)
+
+        for smile in tqdm(self.df['SMILE'].unique()):
             if smile not in self.s_graph:
                 try:
                     self.s_graph[smile] = process_smile_graph(smile, 6, 8, 1)
                 except Exception as e:
-                    print(e)
-                    not_available.append(i)
+                    not_available_smile.append(smile)
+
+        not_available = []
+        for i in range(len(self.df.index)):
+            pdb = self.df.iloc[i]['PDB'].lower()
+            smile = self.df.iloc[i]['SMILE']
+            if pdb in not_available_pdb or smile in not_available_smile:
+                not_available.append(i)
 
         self.df.drop(list(set(not_available)), axis=0, inplace=True)
         self.df.to_csv(self.df_dir)
@@ -82,15 +87,17 @@ class DTIData(Dataset):
         smile = self.df.iloc[index]['SMILE']
         pdb = self.df.iloc[index]['PDB'].lower()
         p_graph = self.p_graph[pdb]
-        s_graph = self.s_graph[smile]
+        # s_graph = self.s_graph[smile]
+        g = smiles_to_bigraph(smile, node_featurizer=node_featurizer)
+        g = dgl.add_self_loop(g)
         y = torch.tensor(self.df.iloc[index]['Label'])
-        return p_graph, s_graph, smile, pdb, y
+        return p_graph, g, y
 
 
 def collate_wrapper(batch):
     transposed_data = list(zip(*batch))
     prot_graph = transposed_data[0]
     target_graph = transposed_data[1]
-    inp = prot_graph, target_graph, transposed_data[2], transposed_data[3]
-    tgt = torch.stack(transposed_data[4], 0)
+    inp = prot_graph, target_graph
+    tgt = torch.stack(transposed_data[2], 0)
     return inp, tgt

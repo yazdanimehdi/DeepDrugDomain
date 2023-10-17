@@ -2,7 +2,7 @@ from random import shuffle
 
 import pandas as pd
 
-from deepdrugdomain.config import Config
+from deepdrugdomain.utils.config import Config
 
 
 def human_process(config: Config):
