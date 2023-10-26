@@ -348,7 +348,7 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
             futures = {d: self._worker.remote(self, d) for d in data}
             all_processed_data, invalid_results = self._process(futures, data)
             self.none = invalid_results
-            mapping_info = self.generate_mapping(data, None)
+            mapping_info = self.generate_mapping(data)
             self.save_preprocessed_to_disk(all_processed_data, directory, file_prefix)
             save_mapping(mapping_info, os.path.join(directory, f"{registered_name}_{file_prefix}_mapping_info.json"))
             ray.shutdown()
@@ -359,7 +359,7 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
             }
 
         else:
-            futures = {d: self._preprocess_and_save_data_point.remote(self, d, directory) for d in data}
+            futures = {d: self._preprocess_and_save_data_point.remote(self, d, directory, idx, file_prefix) for idx, d in enumerate(data)}
             all_processed_data, invalid_results = self._process(futures, data)
             self.none = invalid_results
             save_mapping(all_processed_data,

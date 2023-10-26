@@ -26,7 +26,8 @@ def get_args_parser():
     parser.add_argument('--raw-data-dir', default='./data/', type=str)
     parser.add_argument('--train-split', default=1, type=float)
     parser.add_argument('--val-split', default=0, type=float)
-    parser.add_argument('--dataset', default='drugbank', choices=['dude', 'celegans', 'human', 'drugbank', 'ibm', 'bindingdb', 'kiba', 'davis'],
+    parser.add_argument('--dataset', default='drugbank',
+                        choices=['dude', 'celegans', 'human', 'drugbank', 'ibm', 'bindingdb', 'kiba', 'davis'],
                         type=str, help='Image Net dataset path')
     parser.add_argument('--df-dir', default='./data/', type=str)
     parser.add_argument('--processed-file-dir', default='./data/processed/', type=str)
@@ -50,6 +51,7 @@ def get_args_parser():
 
     return parser
 
+
 def get_roce(predList, targetList, roceRate):
     p = sum(targetList)
     n = len(targetList) - p
@@ -59,13 +61,13 @@ def get_roce(predList, targetList, roceRate):
     fp1 = 0
     maxIndexs = []
     for x in predList:
-        if(targetList[x[0]] == 1):
+        if (targetList[x[0]] == 1):
             tp1 += 1
         else:
             fp1 += 1
-            if(fp1>((roceRate*n)/100)):
+            if (fp1 > ((roceRate * n) / 100)):
                 break
-    roce = (tp1*n)/(p*fp1)
+    roce = (tp1 * n) / (p * fp1)
     return roce
 
 
@@ -77,7 +79,8 @@ def test_func(model, dataloader, device):
         outs = []
         for item in range(len(inp[0])):
             inpu = (inp[0][item].to(device), inp[1][item].to(device))
-            out = model(inpu)
+            with torch.no_grad():
+                out = model(inpu)
             outs.append(out)
         out = torch.stack(outs, dim=0).squeeze(1)
         y_pred.append(out.detach().cpu())
@@ -146,7 +149,8 @@ def main(args):
         drug_attributes="SMILE",
         online_preprocessing_drug=False,
         in_memory_preprocessing_drug=True,
-        protein_preprocess_type=("dgl_graph_from_protein_pocket", {"pdb_path": "data/pdb/", "protein_size_limit": 50000}),
+        protein_preprocess_type=(
+        "dgl_graph_from_protein_pocket", {"pdb_path": "data/pdb/", "protein_size_limit": 50000}),
         protein_attributes="PDB",
         online_preprocessing_protein=False,
         in_memory_preprocessing_protein=False,
@@ -202,9 +206,9 @@ def main(args):
         test_func(model, data_loader_test, device)
         fn = "last_checkpoint_celegans.pt"
         info_dict = {
-           'epoch': epoch,
-           'net_state': model.state_dict(),
-           'optimizer_state': optimizer.state_dict()
+            'epoch': epoch,
+            'net_state': model.state_dict(),
+            'optimizer_state': optimizer.state_dict()
         }
         torch.save(info_dict, fn)
 
@@ -215,5 +219,3 @@ if __name__ == '__main__':
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     main(args)
-
-

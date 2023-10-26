@@ -10,8 +10,8 @@ from deepdrugdomain.utils.weight_init import trunc_normal_
 
 
 class FragXSiteDTI(nn.Module):
-    def __init__(self, embed_dim=256, depth=2, num_heads=4, mlp_ratio=4., qkv_bias=True, qk_scale=None, drop_rate=0.,
-                 attn_drop_rate=0., drop_path_rate=0.05, norm_layer=partial(nn.LayerNorm, eps=1e-6), global_pool=None,
+    def __init__(self, embed_dim=256, depth=2, num_heads=4, mlp_ratio=4., qkv_bias=True, qk_scale=None, drop_rate=0.3,
+                 attn_drop_rate=0., drop_path_rate=0.3, norm_layer=partial(nn.LayerNorm, eps=1e-6), global_pool=None,
                  block_layers=Block,
                  act_layer=nn.GELU, attention_block=Attention, mlp_block=Mlp, cross_att_block=Block_CA, input_stages=2,
                  output_stages=2, latent_space=200, dpr_constant=True, mlp_ratio_ca=6.0,  drop_rate_ca=0.0, **kwargs):
@@ -84,12 +84,12 @@ class FragXSiteDTI(nn.Module):
         feature_smile = g[1].ndata['h']
         for module in self.protein_graph_conv:
             feature_protein = F.relu(module(g[0], feature_protein))
-            feature_protein = F.dropout(feature_protein, 0.05)
+            feature_protein = F.dropout(feature_protein, 0.2)
             # feature_protein = F.normalize(feature_protein)
 
         for module in self.ligand_graph_conv:
             feature_smile = F.relu(module(g[1], feature_smile))
-            feature_smile = F.dropout(feature_smile, 0.05)
+            feature_smile = F.dropout(feature_smile, 0.2)
             # feature_smile = F.normalize(feature_smile)
 
         pool_ligand = MaxPooling()
