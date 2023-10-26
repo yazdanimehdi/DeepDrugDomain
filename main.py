@@ -139,9 +139,6 @@ def main(args):
         except:
             pass
 
-    # torch.multiprocessing.set_sharing_strategy('file_system')
-    # resource.setrlimit(resource.RLIMIT_NOFILE, (12000, 12000))
-    # os.environ["RAY_memory_monitor_refresh_ms"] = "0"
     dataset = DrugProteinDataset(
         train_df,
         drug_preprocess_type=("dgl_graph_from_smile",

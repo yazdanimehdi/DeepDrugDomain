@@ -5,15 +5,22 @@ class MissingRequiredParameterError(Exception):
         self.class_name = class_name
         self.missing_key = missing_key
         super().__init__(
-            f"'{self.missing_key}' parameter is missing, which is required for the '{self.class_name}' layer.")
+            f"'{self.missing_key}' parameter is missing, which is required for the '{self.class_name}'.")
 
 
 class ProteinTooBig(Exception):
-    """Exception raised for errors in the input salary.
-
+    """
+    Exception raised when the size of a protein is too large for the system's memory to handle.
+    
     Attributes:
-        salary -- input salary which caused the error
-        message -- explanation of the error
+        size (int): Size of the protein.
+        pdb (str): Identifier or name of the protein.
+        message (str, optional): Default error message for the exception. Default is "Protein size is too big to parse".
+
+    Example:
+        >>> if protein_size > MAX_SIZE:
+        ...     raise ProteinTooBig(protein_size, protein_pdb, "Custom error message")
+        ...
     """
 
     def __init__(self, size, pdb, message="Protein size is too big to parse"):
