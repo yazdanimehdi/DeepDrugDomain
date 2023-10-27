@@ -22,153 +22,233 @@ Citation:
 [Please provide the actual citation for the paper here.]
 
 """
-import math
-
 import torch
 from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
-from deepdrugdomain.layers import Attention, GraphLayerFactory
-from typing import Callable, Optional, Sequence
+from deepdrugdomain.layers import LayerFactory, ActivationFactory
+from typing import Optional, Sequence
 
 from deepdrugdomain.utils.weight_init import trunc_normal_
+from .factory import ModelFactory
 
 
-def scaled_dot_product(q, k, v, mask=None):
-    d_k = q.size()[-1]
-    attn_logits = torch.matmul(q, k.transpose(-2, -1))
-    attn_logits = attn_logits / math.sqrt(d_k)
-    if mask is not None:
-        attn_logits = attn_logits.masked_fill(mask == 0, -9e15)
-    attention = F.softmax(attn_logits, dim=-1)
-    values = torch.matmul(attention, v)
-    return values, attention
-
-
-class MultiHeadAttention(nn.Module):
-
-    def __init__(self, input_dim, embed_dim, num_heads):
-        super().__init__()
-        assert embed_dim % num_heads == 0, "Embedding dimension must be 0 modulo number of heads."
-
-        self.embed_dim = embed_dim
-        self.num_heads = num_heads
-        self.head_dim = embed_dim // num_heads
-
-        # Stack all weight matrices 1...h together for efficiency
-        # Note that in many implementations you see "bias=False" which is optional
-        self.qkv_proj = nn.Linear(input_dim, 3 * embed_dim)
-        self.o_proj = nn.Linear(embed_dim, embed_dim)
-
-        self._reset_parameters()
-
-    def _reset_parameters(self):
-        # Original Transformer initialization, see PyTorch documentation
-        nn.init.xavier_uniform_(self.qkv_proj.weight)
-        self.qkv_proj.bias.data.fill_(0)
-        nn.init.xavier_uniform_(self.o_proj.weight)
-        self.o_proj.bias.data.fill_(0)
-
-    def forward(self, x, mask=None, return_attn=False):
-        batch_size, seq_length, embed_dim = x.size()
-        qkv = self.qkv_proj(x)
-
-        # Separate Q, K, V from linear output
-        qkv = qkv.reshape(batch_size, seq_length, self.num_heads, 3 * self.head_dim)
-        qkv = qkv.permute(0, 2, 1, 3)  # [Batch, Head, SeqLen, Dims]
-        q, k, v = qkv.chunk(3, dim=-1)
-
-        # Determine value outputs
-        values, attention = scaled_dot_product(q, k, v, mask=mask)
-        values = values.permute(0, 2, 1, 3)  # [Batch, SeqLen, Head, Dims]
-        values = values.reshape(batch_size, seq_length, embed_dim)
-        o = self.o_proj(values)
-        if return_attn:
-            return o, attention
-        else:
-            return o
-
-
+@ModelFactory.register("attentionsitedti")
 class AttentionSiteDTI(nn.Module):
     """
-        The AttentionSiteDTI model is designed for Drug-Target Interaction (DTI) prediction using attention mechanisms.
-        It processes both protein and drug graphs and aggregates their representations.
+        An Interpretable Graph-Based Model for Drug-Target Interaction (DTI) Prediction.
+
+        The AttentionSiteDTI model is a sophisticated deep learning architecture that represents 
+        both drugs and targets as graphs. It leverages graph convolutional layers for feature 
+        extraction, an attention mechanism to emphasize crucial interaction regions, and optionally, 
+        LSTM layers to account for sequential patterns in the combined drug-target representation.
 
         Attributes:
-        - Protein graph convolution layers
-        - Ligand graph convolution layers
-        - Graph pooling layers
-        - LSTM (optional) for sequence modeling
-        - Attention layer
-        - Output prediction layer
+        ------------
+        protein_graph_conv : nn.ModuleList
+            List of graph convolutional layers dedicated to processing protein representations.
 
-        Args:
+        ligand_graph_conv : nn.ModuleList
+            List of graph convolutional layers for processing ligand representations.
+
+        pool_protein : nn.Module
+            Pooling layer for protein graph representations.
+
+        pool_ligand : nn.Module
+            Pooling layer for ligand graph representations.
+
+        lstm : nn.Module
+            LSTM layers for capturing sequential patterns. Used if `use_lstm_layer` is True.
+
+        attention : nn.Module
+            Attention mechanism layer emphasizing regions critical for drug-target interaction.
+
+        fc : nn.ModuleList
+            List of fully connected layers leading to the prediction layer.
+
+        fc_out : nn.Linear
+            The final prediction layer.
+
+        activation : nn.Module
+            Activation function applied after the fully connected layers.
+
+        Parameters:
+        ------------
         protein_graph_conv_layer : str
-            Type of graph convolution layer for protein (default is "dgl_tag").
-        ligand_graph_conv_layer : str
-            Type of graph convolution layer for drug (default is "dgl_tag").
-        ... [other arguments]
+            Specifies the type of graph convolutional layer to be used for processing protein graph representations.
 
-        Note: For more details on each argument, refer to the method definition below.
+        ligand_graph_conv_layer : str
+            Specifies the type of graph convolutional layer to be used for processing ligand (drug) graph representations.
+
+        protein_input_size : int
+            Initial dimensionality of the input features for proteins.
+
+        ligand_input_size : int
+            Initial dimensionality of the input features for ligands (drugs).
+
+        protein_graph_conv_dims : Sequence[int]
+            Dimensions for each subsequent graph convolutional layer dedicated to protein representations.
+
+        ligand_graph_conv_dims : Sequence[int]
+            Dimensions for each subsequent graph convolutional layer dedicated to ligand representations.
+
+        sequence_length : int
+            Expected length of the combined drug-target sequence representation.
+
+        embedding_dim : int
+            Desired dimensionality of the embeddings after combining drug and target representations.
+
+        ligand_graph_pooling : str
+            Defines the type of graph pooling mechanism to be used on ligand graphs.
+
+        protein_graph_pooling : str
+            Defines the type of graph pooling mechanism to be used on protein graphs.
+
+        use_lstm_layer : bool
+            Flag to decide if LSTM layers should be used in the model for capturing sequential patterns.
+
+        use_bilstm : bool
+            If set to True, a bidirectional LSTM will be used. Relevant only if `use_lstm_layer` is True.
+
+        lstm_input : Optional[int]
+            Size of input features for the LSTM layer.
+
+        lstm_output : Optional[int]
+            Output size from the LSTM layer.
+
+        lstm_num_layers : Optional[int]
+            Number of LSTM layers to be used.
+
+        lstm_dropout_rate : Optional[float]
+            Dropout rate to be applied to LSTM layers.
+
+        head_dims : Sequence[int]
+            Defines the dimensions for each subsequent fully connected layer leading to the final prediction.
+
+        attention_layer : str
+            Specifies the type of attention layer to be used in the model.
+
+        attention_head : int
+            Number of attention heads in the attention mechanism.
+
+        attention_dropout : float
+            Dropout rate applied in the attention mechanism.
+
+        qk_scale : Optional[float]
+            Scaling factor for the query-key dot product in the attention mechanism.
+
+        proj_drop : float
+            Dropout rate applied after the projection in the attention mechanism.
+
+        attention_layer_bias : bool
+            If True, biases will be included in the attention mechanism computations.
+
+        protein_conv_dropout_rate : Sequence[float]
+            Dropout rates for each protein graph convolutional layer.
+
+        protein_conv_normalization : Sequence[str]
+            Normalization types (e.g., 'batch', 'layer') for each protein graph convolutional layer.
+
+        ligand_conv_dropout_rate : Sequence[float]
+            Dropout rates for each ligand graph convolutional layer.
+
+        ligand_conv_normalization : Sequence[str]
+            Normalization types (e.g., 'batch', 'layer') for each ligand graph convolutional layer.
+
+        head_dropout_rate : float
+            Dropout rate applied before the final prediction layer.
+
+        head_activation_fn : Optional[str]
+            Activation function applied after the fully connected layers. If None, no activation is applied.
+
+        protein_graph_conv_kwargs : Sequence[dict]
+            Additional keyword arguments for each protein graph convolutional layer.
+
+        ligand_graph_conv_kwargs : Sequence[dict]
+            Additional keyword arguments for each ligand graph convolutional layer.
+
+        ligand_graph_pooling_kwargs : dict
+            Additional keyword arguments for the ligand graph pooling layer.
+
+        protein_graph_pooling_kwargs : dict
+            Additional keyword arguments for the protein graph pooling layer.
+
+        **kwargs : 
+            Other additional keyword arguments not explicitly listed above.
+
     """
 
     def __init__(self,
-                 protein_graph_conv_layer: str = "dgl_tag",
-                 ligand_graph_conv_layer: str = "dgl_tag",
-                 protein_input_size: int = 74,
-                 ligand_input_size: int = 74,
-                 protein_graph_conv_dims: Sequence[int] = (50, 45),
-                 ligand_graph_conv_dims: Sequence[int] = (50, 45, 45),
-                 sequence_length: int = 150,
-                 embedding_dim: int = 45,
-                 ligand_graph_pooling: str = "dgl_maxpool",
-                 protein_graph_pooling: str = "dgl_maxpool",
-                 use_lstm_layer: bool = False,
-                 use_bilstm: bool = False,
-                 lstm_input: Optional[int] = None,
-                 lstm_output: Optional[int] = None,
-                 lstm_num_layers: Optional[int] = None,
-                 lstm_dropout_rate: Optional[float] = None,
-                 head_dims: Sequence[int] = (2000, 1000, 500, 1),
-                 attention_layer: Callable = Attention,
-                 attention_head: int = 1,
-                 attention_dropout: float = 0.0,
-                 qk_scale: Optional[float] = None,
-                 proj_drop: float = 0.0,
-                 attention_layer_bias: bool = True,
-                 protein_conv_dropout_rate: float = 0.2,
-                 ligand_conv_dropout_rate: float = 0.2,
-                 head_dropout_rate: float = 0.1,
-                 head_activation_fn=nn.ReLU,
-                 **kwargs,
+                 protein_graph_conv_layer: str,
+                 ligand_graph_conv_layer: str,
+                 protein_input_size: int,
+                 ligand_input_size: int,
+                 protein_graph_conv_dims: Sequence[int],
+                 ligand_graph_conv_dims: Sequence[int],
+                 sequence_length: int,
+                 embedding_dim: int,
+                 ligand_graph_pooling: str,
+                 protein_graph_pooling: str,
+                 use_lstm_layer: bool,
+                 use_bilstm: bool,
+                 lstm_input: Optional[int],
+                 lstm_output: Optional[int],
+                 lstm_num_layers: Optional[int],
+                 lstm_dropout_rate: Optional[float],
+                 head_dims: Sequence[int],
+                 attention_layer: str,
+                 attention_head: int,
+                 attention_dropout: float,
+                 qk_scale: Optional[float],
+                 proj_drop: float,
+                 attention_layer_bias: bool,
+                 protein_conv_dropout_rate: Sequence[float],
+                 protein_conv_normalization: Sequence[str],
+                 ligand_conv_dropout_rate: Sequence[float],
+                 ligand_conv_normalization: Sequence[str],
+                 head_dropout_rate: float,
+                 head_activation_fn: Optional[str],
+                 protein_graph_conv_kwargs: Sequence[dict],
+                 ligand_graph_conv_kwargs: Sequence[dict],
+                 ligand_graph_pooling_kwargs: dict,
+                 protein_graph_pooling_kwargs: dict,
+                 **kwargs
                  ) -> None:
+        """Initialize the AttentionSiteDTI model."""
         super(AttentionSiteDTI, self).__init__()
         self.embedding_dim = embedding_dim
         self.sequence_length = sequence_length
-        kwargs['k'] = 8
+
         # Initialize protein graph convolution layers
         p_dims = [protein_input_size] + list(protein_graph_conv_dims)
+        assert len(p_dims) - 1 == len(protein_conv_dropout_rate) == len(protein_graph_conv_kwargs) == len(
+            protein_conv_normalization), "The number of protein graph convolution layers parameters must be the same"
         self.protein_graph_conv = nn.ModuleList([
-            GraphLayerFactory.create(protein_graph_conv_layer,
-                                     p_dims[i],
-                                     p_dims[i + 1],
-                                     **kwargs) for i in range(len(p_dims) - 1)])
+            LayerFactory.create(protein_graph_conv_layer,
+                                p_dims[i],
+                                p_dims[i + 1],
+                                normalization=protein_conv_normalization[i],
+                                dropout=protein_conv_dropout_rate[i],
+                                **protein_graph_conv_kwargs[i]) for i in range(len(p_dims) - 1)])
 
         # Initialize drug graph convolution layers
-
         l_dims = [ligand_input_size] + list(ligand_graph_conv_dims)
+        assert len(l_dims) - 1 == len(ligand_conv_dropout_rate) == len(ligand_graph_conv_kwargs) == len(
+            ligand_conv_normalization), "The number of ligand graph convolution layers parameters must be the same"
         self.ligand_graph_conv = nn.ModuleList([
-            GraphLayerFactory.create(ligand_graph_conv_layer,
-                                     l_dims[i],
-                                     l_dims[i + 1],
-                                     **kwargs) for i in range(len(l_dims) - 1)])
+            LayerFactory.create(ligand_graph_conv_layer,
+                                l_dims[i],
+                                l_dims[i + 1],
+                                normalization=ligand_conv_normalization[i],
+                                dropout=ligand_conv_dropout_rate[i],
+                                **ligand_graph_conv_kwargs[i]) for i in range(len(l_dims) - 1)])
 
         # Graph pooling layers
-        self.pool_ligand = GraphLayerFactory.create(ligand_graph_pooling, **kwargs)
-        self.pool_protein = GraphLayerFactory.create(protein_graph_pooling, **kwargs)
+        self.pool_ligand = LayerFactory.create(
+            ligand_graph_pooling, **ligand_graph_pooling_kwargs)
+        self.pool_protein = LayerFactory.create(
+            protein_graph_pooling, **protein_graph_pooling_kwargs)
 
-        self.protein_conv_dropout = nn.Dropout(protein_conv_dropout_rate)
-        self.ligand_conv_dropout = nn.Dropout(ligand_conv_dropout_rate)
         self.head_dropout = nn.Dropout(head_dropout_rate)
 
         # Graph pooling layers
@@ -178,8 +258,10 @@ class AttentionSiteDTI(nn.Module):
                                 lstm_num_layers], "You need to set the LSTM parameters in the model"
             self.lstm = nn.LSTM(lstm_input, self.embedding_dim, num_layers=lstm_num_layers, bidirectional=use_bilstm,
                                 dropout=lstm_dropout_rate)
-            self.h_0 = Variable(torch.zeros(lstm_num_layers * 2, 1, self.embedding_dim).cuda())
-            self.c_0 = Variable(torch.zeros(lstm_num_layers * 2, 1, self.embedding_dim).cuda())
+            self.h_0 = Variable(torch.zeros(
+                lstm_num_layers * 2, 1, self.embedding_dim).cuda())
+            self.c_0 = Variable(torch.zeros(
+                lstm_num_layers * 2, 1, self.embedding_dim).cuda())
 
         else:
             self.lstm = nn.Identity()
@@ -188,9 +270,9 @@ class AttentionSiteDTI(nn.Module):
                                                           attention heads"
 
         # Attention layer
-        self.attention = attention_layer(self.embedding_dim, num_heads=attention_head,
-                                         qkv_bias=attention_layer_bias, qk_scale=qk_scale,
-                                         attn_drop=attention_dropout, proj_drop=proj_drop)
+        self.attention = LayerFactory.create(attention_layer, self.embedding_dim, num_heads=attention_head,
+                                             qkv_bias=attention_layer_bias, qk_scale=qk_scale,
+                                             attn_drop=attention_dropout, proj_drop=proj_drop, **kwargs)
 
         # Prediction layer
         self.fc = nn.ModuleList()
@@ -200,11 +282,21 @@ class AttentionSiteDTI(nn.Module):
 
         self.fc_out = nn.Linear(neuron_list[-2], neuron_list[-1])
 
-        self.activation = head_activation_fn()
+        self.activation = ActivationFactory.create(
+            head_activation_fn) if head_activation_fn else nn.Identity()
 
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
+        """
+            Initialize weights for the layers.
+
+            This method applies a truncated normal initialization for linear layers and 
+            sets up biases/weights for LayerNorm layers.
+
+            Parameters:
+            - m (nn.Module): A PyTorch module whose weights need to be initialized.
+        """
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
@@ -213,41 +305,75 @@ class AttentionSiteDTI(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    def forward(self, g):
+    def forward_features(self, g):
         """
-                Forward pass of the model.
+            Extract features from drug and target graphs.
 
-                Args:
-                g : tuple of DGLGraph
-                    Tuple containing the protein and drug graphs.
+            This method processes the drug and target graphs through their respective 
+            graph convolutional layers and pools the results.
 
-                Returns:
-                out : torch.Tensor
-                    Prediction scores for the drug-target interaction.
+            Parameters:
+            - g (tuple): A tuple containing the drug and target graphs.
+
+            Returns:
+            - Tuple[Tensor, Tensor]: Protein and ligand representations after convolution and pooling.
         """
         feature_protein = g[0].ndata['h']
         feature_smile = g[1].ndata['h']
         for module in self.protein_graph_conv:
-            feature_protein = F.relu(module(g[0], feature_protein))
-            feature_protein = F.normalize(feature_protein)
-            feature_protein = self.protein_conv_dropout(feature_protein)
+            feature_protein = module(g[0], feature_protein)
 
         for module in self.ligand_graph_conv:
-            feature_smile = F.relu(module(g[1], feature_smile))
-            feature_smile = F.normalize(feature_smile)
-            feature_smile = self.ligand_conv_dropout(feature_smile)
+            feature_smile = module(g[1], feature_smile)
 
-        protein_rep = self.pool_protein(g[0], feature_protein).view(-1, self.embedding_dim)
-        ligand_rep = self.pool_ligand(g[1], feature_smile).view(-1, self.embedding_dim)
+        protein_rep = self.pool_protein(
+            g[0], feature_protein).view(-1, self.embedding_dim)
+        ligand_rep = self.pool_ligand(
+            g[1], feature_smile).view(-1, self.embedding_dim)
 
-        sequence = torch.cat((ligand_rep, protein_rep), dim=0).view(1, -1, self.embedding_dim)
+        return protein_rep, ligand_rep
+
+    def generate_attention_mask(self, sequence_size):
+        """
+            Generate an attention mask based on sequence size.
+
+            This mask is designed to pay attention to valid parts of the sequence and ignore padding.
+
+            Parameters:
+            - sequence_size (int): Size of the valid sequence.
+
+            Returns:
+            - Tensor: The generated attention mask.
+        """
         mask = torch.eye(self.sequence_length, dtype=torch.uint8).view(1, self.sequence_length,
-                                                                       self.sequence_length).cuda()
-        mask[0, sequence.size()[1]:self.sequence_length, :] = 0
-        mask[0, :, sequence.size()[1]:self.sequence_length] = 0
-        mask[0, :, sequence.size()[1] - 1] = 1
-        mask[0, sequence.size()[1] - 1, :] = 1
-        mask[0, sequence.size()[1] - 1, sequence.size()[1] - 1] = 0
+                                                                       self.sequence_length)
+        mask[0, sequence_size:self.sequence_length, :] = 0
+        mask[0, :, sequence_size:self.sequence_length] = 0
+        mask[0, :, sequence_size - 1] = 1
+        mask[0, sequence_size - 1, :] = 1
+        mask[0, sequence_size - 1, sequence_size - 1] = 0
+
+        return mask
+
+    def forward(self, g):
+        """
+            Forward pass of the model.
+
+            Process the drug and target graphs through the network, making use of the attention mechanism, 
+            and optionally, LSTM layers, to predict their interaction.
+
+            Parameters:
+            - g (tuple): A tuple containing the drug and target graphs.
+
+            Returns:
+            - Tuple[Tensor, Tensor]: Model output and attention weights.
+        """
+
+        protein_rep, ligand_rep = self.forward_features(g)
+        sequence = torch.cat((ligand_rep, protein_rep), dim=0).view(
+            1, -1, self.embedding_dim)
+        mask = self.generate_attention_mask(
+            sequence.size()[1]).to(sequence.device)
         sequence = F.pad(input=sequence, pad=(0, 0, 0, self.sequence_length - sequence.size()[1]), mode='constant',
                          value=0)
 
@@ -263,7 +389,6 @@ class AttentionSiteDTI(nn.Module):
         out, att = self.attention(output, mask=mask, return_attn=True)
 
         out = out.view(-1, out.size()[1] * out.size()[2])
-        # out = out[:, 0, :]
         for layer in self.fc:
             out = F.relu(layer(out))
             out = self.head_dropout(out)

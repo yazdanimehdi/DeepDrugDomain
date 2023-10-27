@@ -2,14 +2,14 @@
 graph_pooling_layers.py
 
 This module provides a set of classes that act as wrappers around DGL's graph pooling layers.
-By leveraging the factory pattern provided by the GraphLayerFactory,
+By leveraging the factory pattern provided by the LayerFactory,
 it becomes straightforward to instantiate these layers in a unified manner.
 
 Example:
-    >>> from deepdrugdomain.layers.graph_layers import GraphLayerFactory
-    >>> max_pool_layer = GraphLayerFactory.create('dgl_maxpool')
-    >>> sum_pool_layer = GraphLayerFactory.create('dgl_sumpool')
-    >>> attention_pool_layer = GraphLayerFactory.create('dgl_attentionpool', gate_nn_dims=[32, 1])
+    >>> from deepdrugdomain.layers import LayerFactory
+    >>> max_pool_layer = LayerFactory.create('dgl_maxpool')
+    >>> sum_pool_layer = LayerFactory.create('dgl_sumpool')
+    >>> attention_pool_layer = LayerFactory.create('dgl_attentionpool', gate_nn_dims=[32, 1])
 
 Requirements:
     - dgl (For DGL's graph pooling layers)
@@ -21,14 +21,15 @@ import warnings
 from dgl.nn.pytorch.glob import MaxPooling, SumPooling, AvgPooling, GlobalAttentionPooling
 import torch.nn as nn
 from deepdrugdomain.utils.exceptions import MissingRequiredParameterError
-from .graph_layer_factory import GraphLayerFactory, AbstractGraphLayer
+from ..utils.layer_factory import LayerFactory
 
 
-@GraphLayerFactory.register('dgl_maxpool')
-class MaxPoolLayer(AbstractGraphLayer):
+@LayerFactory.register('dgl_maxpool')
+class MaxPoolLayer(nn.Module):
     """
     Wrapper class for DGL's MaxPooling layer.
     """
+
     def __init__(self):
         super().__init__()
         self.layer = MaxPooling()
@@ -38,11 +39,12 @@ class MaxPoolLayer(AbstractGraphLayer):
         return self.layer(g, features)
 
 
-@GraphLayerFactory.register('dgl_sumpool')
-class SumPoolLayer(AbstractGraphLayer):
+@LayerFactory.register('dgl_sumpool')
+class SumPoolLayer(nn.Module):
     """
     Wrapper class for DGL's SumPooling layer.
     """
+
     def __init__(self):
         super().__init__()
         self.layer = SumPooling()
@@ -52,11 +54,12 @@ class SumPoolLayer(AbstractGraphLayer):
         return self.layer(g, features)
 
 
-@GraphLayerFactory.register('dgl_avgpool')
-class AvgPoolLayer(AbstractGraphLayer):
+@LayerFactory.register('dgl_avgpool')
+class AvgPoolLayer(nn.Module):
     """
     Wrapper class for DGL's AvgPooling layer.
     """
+
     def __init__(self):
         super().__init__()
         self.layer = AvgPooling()
@@ -66,17 +69,19 @@ class AvgPoolLayer(AbstractGraphLayer):
         return self.layer(g, features)
 
 
-@GraphLayerFactory.register('dgl_attentionpool')
-class AttentionPoolLayer(AbstractGraphLayer):
+@LayerFactory.register('dgl_attentionpool')
+class AttentionPoolLayer(nn.Module):
     """
     Wrapper class for DGL's GlobalAttentionPooling layer.
     This layer uses a gating mechanism to determine node importance.
     """
+
     def __init__(self, **kwargs):
         super().__init__()
 
         if 'gate_nn_dims' not in kwargs:
-            raise MissingRequiredParameterError(self.__class__.__name__, 'gate_nn_dims')
+            raise MissingRequiredParameterError(
+                self.__class__.__name__, 'gate_nn_dims')
 
         if 'feat_nn_dims' not in kwargs:
             warnings.warn(
@@ -84,11 +89,13 @@ class AttentionPoolLayer(AbstractGraphLayer):
             feat_nn = None
         else:
             dims = kwargs['feat_nn_dims']
-            layers = [nn.Linear(dims[i], dims[i + 1]) for i in range(len(dims) - 1)]
+            layers = [nn.Linear(dims[i], dims[i + 1])
+                      for i in range(len(dims) - 1)]
             feat_nn = nn.ModuleList(layers)
 
         dims = kwargs['gate_nn_dims']
-        layers = [nn.Linear(dims[i], dims[i + 1]) for i in range(len(dims) - 1)]
+        layers = [nn.Linear(dims[i], dims[i + 1])
+                  for i in range(len(dims) - 1)]
         gate_nn = nn.ModuleList(layers)
 
         self.layer = GlobalAttentionPooling(feat_nn=feat_nn, gate_nn=gate_nn)

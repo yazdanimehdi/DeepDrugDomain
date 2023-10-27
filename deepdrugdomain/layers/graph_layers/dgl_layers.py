@@ -2,14 +2,14 @@
 graph_conv_layers.py
 
 This module provides wrapper classes around DGL's graph convolution layers.
-These wrappers are built on top of the factory pattern provided by the GraphLayerFactory.
+These wrappers are built on top of the factory pattern provided by the LayerFactory.
 It makes instantiating these layers more streamlined and manageable.
 
 Example:
     >>> from deepdrugdomain.layers.graph_layers import GraphLayerFactory
-    >>> gcn_layer = GraphLayerFactory.create('dgl_gcn', in_feat=64, out_feat=128)
-    >>> gat_layer = GraphLayerFactory.create('dgl_gat', in_feat=64, out_feat=128, num_heads=8)
-    >>> tag_layer = GraphLayerFactory.create('dgl_tag', in_feat=64, out_feat=128)
+    >>> gcn_layer = LayerFactory.create('dgl_gcn', in_feat=64, out_feat=128)
+    >>> gat_layer = LayerFactory.create('dgl_gat', in_feat=64, out_feat=128, num_heads=8)
+    >>> tag_layer = LayerFactory.create('dgl_tag', in_feat=64, out_feat=128)
 
 Requirements:
     - dgl (For DGL's graph convolution layers)
@@ -17,20 +17,22 @@ Requirements:
     - deepdrugdomain (For the base factory class and custom exceptions)
 """
 
-from .graph_layer_factory import GraphLayerFactory, AbstractGraphLayer
+from ..utils import LayerFactory, ActivationFactory
 import torch
 from dgl.nn.pytorch import GraphConv, TAGConv, GATConv
+import torch.nn as nn
 import torch.nn.functional as F
-from deepdrugdomain.utils.exceptions import MissingRequiredParameterError
 import warnings
+from deepdrugdomain.utils import MissingRequiredParameterError
 
 
-@GraphLayerFactory.register('dgl_gcn')
-class GCN(AbstractGraphLayer):
+@LayerFactory.register('dgl_gcn')
+class GCN(nn.Module):
     """
     Wrapper class for DGL's Graph Convolution (GCN) layer.
     """
-    def __init__(self, in_feat, out_feat, **kwargs):
+
+    def __init__(self, in_feat, out_feat, normalization=None, dropout=0.0, **kwargs):
         super().__init__()
 
         # Default parameter values
@@ -38,7 +40,7 @@ class GCN(AbstractGraphLayer):
             'norm': 'both',
             'weights': True,
             'bias': True,
-            'activation': F.relu,
+            'activation': "relu",
             'allow_zero_in_degree': False
         }
 
@@ -49,23 +51,32 @@ class GCN(AbstractGraphLayer):
                 warnings.warn(
                     f"'{key}' parameter is missing. Using default value '{default_val}' for the '{self.__class__.__name__}' layer.")
 
+        kwargs["activation"] = ActivationFactory.create(
+            kwargs['activation']) if kwargs['activation'] is not None else None
+
         self.layer = GraphConv(in_feats=in_feat, out_feats=out_feat, **kwargs)
+        self.norm = LayerFactory.create(
+            normalization, out_feat) if normalization else nn.Identity()
+        self.dropout = nn.Dropout(dropout, inplace=True)
 
     def forward(self, g, features: torch.Tensor) -> torch.Tensor:
         """ Pass the graph and its features through the GCN layer. """
-        return self.layer(g, features)
+
+        features = self.layer(g, features)
+        features = self.norm(features)
+        features = self.dropout(features)
+
+        return features
 
 
-@GraphLayerFactory.register('dgl_gat')
-class GAT(AbstractGraphLayer):
+@LayerFactory.register('dgl_gat')
+class GAT(nn.Module):
     """
     Wrapper class for DGL's Graph Attention Network (GAT) layer.
     """
-    def __init__(self, in_feat, out_feat, **kwargs):
-        super().__init__()
 
-        if 'num_heads' not in kwargs:
-            raise MissingRequiredParameterError(self.__class__.__name__, 'num_heads')
+    def __init__(self, in_feat, out_feat, normalization=None, dropout=0.0, **kwargs):
+        super().__init__()
 
         # Default parameter values
         defaults = {
@@ -73,10 +84,13 @@ class GAT(AbstractGraphLayer):
             'attn_drop': 0.,
             'negative_slope': 0.2,
             'residual': False,
-            'activation': F.relu,
+            'activation': "relu",
             'allow_zero_in_degree': False,
             'bias': True
         }
+        if 'num_heads' not in kwargs:
+            raise MissingRequiredParameterError(
+                'num_heads', self.__class__.__name__)
 
         # Fill in missing parameters with defaults
         for key, default_val in defaults.items():
@@ -85,19 +99,31 @@ class GAT(AbstractGraphLayer):
                 warnings.warn(
                     f"'{key}' parameter is missing. Using default value '{default_val}' for the '{self.__class__.__name__}' layer.")
 
-        self.layer = GATConv(in_feats=in_feat, out_feats=out_feat, **kwargs)
+        kwargs["activation"] = ActivationFactory.create(
+            kwargs['activation']) if kwargs['activation'] is not None else None
+
+        self.layer = GATConv(
+            in_feats=in_feat, out_feats=out_feat, **kwargs)
+        self.norm = LayerFactory.create(
+            normalization, out_feat) if normalization else nn.Identity()
+        self.dropout = nn.Dropout(dropout, inplace=True)
 
     def forward(self, g, features: torch.Tensor) -> torch.Tensor:
         """ Pass the graph and its features through the GAT layer. """
-        return self.layer(g, features)
+        features = self.layer(g, features)
+        features = self.norm(features)
+        features = self.dropout(features)
+
+        return features
 
 
-@GraphLayerFactory.register('dgl_tag')
-class TAG(AbstractGraphLayer):
+@LayerFactory.register('dgl_tag')
+class TAG(nn.Module):
     """
     Wrapper class for DGL's Topological Adaptive Graph Convolutional (TAG) layer.
     """
-    def __init__(self, in_feat, out_feat, **kwargs):
+
+    def __init__(self, in_feat, out_feat, normalization=None, dropout=0.0, **kwargs):
         super().__init__()
 
         # Default parameter values
@@ -114,8 +140,18 @@ class TAG(AbstractGraphLayer):
                 warnings.warn(
                     f"'{key}' parameter is missing. Using default value '{default_val}' for the '{self.__class__.__name__}' layer.")
 
+        kwargs["activation"] = ActivationFactory.create(
+            kwargs['activation']) if kwargs['activation'] is not None else None
+
         self.layer = TAGConv(in_feats=in_feat, out_feats=out_feat, **kwargs)
+        self.norm = LayerFactory.create(
+            normalization, out_feat) if normalization else nn.Identity()
+        self.dropout = nn.Dropout(dropout, inplace=True)
 
     def forward(self, g, features: torch.Tensor) -> torch.Tensor:
         """ Pass the graph and its features through the TAG layer. """
-        return self.layer(g, features)
+        features = self.layer(g, features)
+        features = self.norm(features)
+        features = self.dropout(features)
+
+        return features
