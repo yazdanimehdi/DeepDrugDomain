@@ -11,14 +11,15 @@ from torch.optim.lr_scheduler import ExponentialLR
 from deepdrugdomain.data import DrugProteinDataset
 from deepdrugdomain.data.collate import CollateFactory
 from torch.utils.data import DataLoader
+from deepdrugdomain.models.factory import ModelFactory
 from deepdrugdomain.utils.config import args_to_config
 from pathlib import Path
 from tqdm import tqdm
-from deepdrugdomain.models import FragXSiteDTI
 
 
 def get_args_parser():
-    parser = argparse.ArgumentParser('DTIA training and evaluation script', add_help=False)
+    parser = argparse.ArgumentParser(
+        'DTIA training and evaluation script', add_help=False)
 
     # Dataset parameters
     parser.add_argument('--data-path', default='./data/', type=str,
@@ -27,10 +28,12 @@ def get_args_parser():
     parser.add_argument('--train-split', default=1, type=float)
     parser.add_argument('--val-split', default=0, type=float)
     parser.add_argument('--dataset', default='drugbank',
-                        choices=['dude', 'celegans', 'human', 'drugbank', 'ibm', 'bindingdb', 'kiba', 'davis'],
+                        choices=['dude', 'celegans', 'human', 'drugbank',
+                                 'ibm', 'bindingdb', 'kiba', 'davis'],
                         type=str, help='Image Net dataset path')
     parser.add_argument('--df-dir', default='./data/', type=str)
-    parser.add_argument('--processed-file-dir', default='./data/processed/', type=str)
+    parser.add_argument('--processed-file-dir',
+                        default='./data/processed/', type=str)
     parser.add_argument('--pdb-dir', default='./data/pdb/', type=str)
 
     parser.add_argument('--output_dir', default='',
@@ -41,7 +44,8 @@ def get_args_parser():
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
-    parser.add_argument('--eval', action='store_true', help='Perform evaluation only')
+    parser.add_argument('--eval', action='store_true',
+                        help='Perform evaluation only')
     parser.add_argument('--num_workers', default=10, type=int)
     parser.add_argument('--pin-mem', action='store_true',
                         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
@@ -98,7 +102,8 @@ def test_func(model, dataloader, device):
     print("F1 Score: " + str(f1_score(y_label, y_pred_c)), end=" ")
     print("Precision Score:" + str(precision_score(y_label, y_pred_c)), end=" ")
     print("Recall Score:" + str(recall_score(y_label, y_pred_c)), end=" ")
-    print("Balanced Accuracy Score " + str(balanced_accuracy_score(y_label, y_pred_c)), end=" ")
+    print("Balanced Accuracy Score " +
+          str(balanced_accuracy_score(y_label, y_pred_c)), end=" ")
     print("0.5 re Score " + str(roce1), end=" ")
     print("1 re Score " + str(roce2), end=" ")
     print("2 re Score " + str(roce3), end=" ")
@@ -120,11 +125,14 @@ def main(args):
 
     # dataset_train, dataset_val, dataset_test = build_dataset(config=config)
     df = pd.read_csv("data/drugbank/drugbankSeqPdb.txt")
+
     with open("data/drugbank/DrugBank.txt", 'r') as fp:
         train_raw = fp.read()
+
     raw_data = train_raw.split("\n")
     shuffle(raw_data)
-    train_df = pd.DataFrame(columns=['SMILE', 'PDB', 'TargetSequence', 'Label'])
+    train_df = pd.DataFrame(
+        columns=['SMILE', 'PDB', 'TargetSequence', 'Label'])
     for item in raw_data:
         try:
             a = item.split()
@@ -133,28 +141,30 @@ def main(args):
             pdb_code = df.loc[df["sequence"] == sequence]["pdb_id"].item()[0:4]
             if pdb_code is not None:
                 label = 1 if a[4] == '1' else 0
-                train_df = train_df.append(
-                    {'SMILE': smile, 'PDB': pdb_code, 'TargetSequence': sequence, 'Label': label},
+                train_df = train_df._append(
+                    {'SMILE': smile, 'PDB': pdb_code,
+                        'TargetSequence': sequence, 'Label': label},
                     ignore_index=True)
         except:
             pass
 
     dataset = DrugProteinDataset(
-        train_df,
+        train_df.head(50),
         drug_preprocess_type=("dgl_graph_from_smile",
-                              {"fragment": True, "max_block": 6, "max_sr": 8, "min_frag_atom": 1}),
+                              {"fragment": False, "max_block": 6, "max_sr": 8, "min_frag_atom": 1}),
         drug_attributes="SMILE",
         online_preprocessing_drug=False,
         in_memory_preprocessing_drug=True,
         protein_preprocess_type=(
-        "dgl_graph_from_protein_pocket", {"pdb_path": "data/pdb/", "protein_size_limit": 50000}),
+            "dgl_graph_from_protein_pocket", {"pdb_path": "data/pdb/", "protein_size_limit": 10000}),
         protein_attributes="PDB",
         online_preprocessing_protein=False,
         in_memory_preprocessing_protein=False,
         save_directory="data/drugbank/",
         threads=8
     )
-    dataset_train, dataset_val, dataset_test = torch.utils.data.random_split(dataset, [0.8, 0.1, 0.1])
+    dataset_train, dataset_val, dataset_test = torch.utils.data.random_split(dataset, [
+                                                                             0.8, 0.1, 0.1])
     collate_fn = CollateFactory.create("binding_graph_smile_graph")
     data_loader_train = DataLoader(dataset_train, batch_size=32, shuffle=True, num_workers=4, pin_memory=True,
                                    collate_fn=collate_fn, drop_last=True)
@@ -163,11 +173,12 @@ def main(args):
                                  num_workers=4, pin_memory=False, collate_fn=collate_fn)
     data_loader_test = DataLoader(dataset_test, drop_last=False, batch_size=32, collate_fn=collate_fn,
                                   num_workers=4, pin_memory=False)
-    model = FragXSiteDTI()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.03)
+    model = ModelFactory.create("attentionsitedti")
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=1e-4, weight_decay=0.03)
     criterion = torch.nn.BCELoss()
     scheduler = ExponentialLR(optimizer, gamma=0.98)
-    device = torch.device(0)
+    device = torch.device("cpu")
     model.to(device)
     epochs = 200
     accum_iter = 2
@@ -187,7 +198,8 @@ def main(args):
 
                 target = target.to(device).view(-1, 1).to(torch.float)
                 loss = criterion(out, target)
-                matches = [torch.round(i) == torch.round(j) for i, j in zip(out, target)]
+                matches = [torch.round(i) == torch.round(j)
+                           for i, j in zip(out, target)]
                 acc = matches.count(True) / len(matches)
                 accs.append(acc)
                 losses.append(loss.detach().cpu())
@@ -211,7 +223,8 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('DTIA training and evaluation script', parents=[get_args_parser()])
+    parser = argparse.ArgumentParser(
+        'DTIA training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
