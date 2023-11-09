@@ -124,56 +124,56 @@ def main(args):
     # )
 
     # dataset_train, dataset_val, dataset_test = build_dataset(config=config)
-    df = pd.read_csv("data/drugbank/drugbankSeqPdb.txt")
+    # df = pd.read_csv("data/drugbank/drugbankSeqPdb.txt")
 
-    with open("data/drugbank/DrugBank.txt", 'r') as fp:
-        train_raw = fp.read()
+    # with open("data/drugbank/DrugBank.txt", 'r') as fp:
+    #     train_raw = fp.read()
 
-    raw_data = train_raw.split("\n")
-    shuffle(raw_data)
-    train_df = pd.DataFrame(
-        columns=['SMILE', 'PDB', 'TargetSequence', 'Label'])
-    for item in raw_data:
-        try:
-            a = item.split()
-            smile = a[2]
-            sequence = a[3]
-            pdb_code = df.loc[df["sequence"] == sequence]["pdb_id"].item()[0:4]
-            if pdb_code is not None:
-                label = 1 if a[4] == '1' else 0
-                train_df = train_df._append(
-                    {'SMILE': smile, 'PDB': pdb_code,
-                        'TargetSequence': sequence, 'Label': label},
-                    ignore_index=True)
-        except:
-            pass
+    # raw_data = train_raw.split("\n")
+    # shuffle(raw_data)
+    # train_df = pd.DataFrame(
+    #     columns=['SMILE', 'PDB', 'TargetSequence', 'Label'])
+    # for item in raw_data:
+    #     try:
+    #         a = item.split()
+    #         smile = a[2]
+    #         sequence = a[3]
+    #         pdb_code = df.loc[df["sequence"] == sequence]["pdb_id"].item()[0:4]
+    #         if pdb_code is not None:
+    #             label = 1 if a[4] == '1' else 0
+    #             train_df = train_df._append(
+    #                 {'SMILE': smile, 'PDB': pdb_code,
+    #                     'TargetSequence': sequence, 'Label': label},
+    #                 ignore_index=True)
+    #     except:
+    #         pass
 
-    dataset = DrugProteinDataset(
-        train_df.head(50),
-        drug_preprocess_type=("dgl_graph_from_smile",
-                              {"fragment": False, "max_block": 6, "max_sr": 8, "min_frag_atom": 1}),
-        drug_attributes="SMILE",
-        online_preprocessing_drug=False,
-        in_memory_preprocessing_drug=True,
-        protein_preprocess_type=(
-            "dgl_graph_from_protein_pocket", {"pdb_path": "data/pdb/", "protein_size_limit": 10000}),
-        protein_attributes="PDB",
-        online_preprocessing_protein=False,
-        in_memory_preprocessing_protein=False,
-        save_directory="data/drugbank/",
-        threads=8
-    )
-    dataset_train, dataset_val, dataset_test = torch.utils.data.random_split(dataset, [
-                                                                             0.8, 0.1, 0.1])
-    collate_fn = CollateFactory.create("binding_graph_smile_graph")
-    data_loader_train = DataLoader(dataset_train, batch_size=32, shuffle=True, num_workers=4, pin_memory=True,
-                                   collate_fn=collate_fn, drop_last=True)
+    # dataset = DrugProteinDataset(
+    #     train_df.head(10),
+    #     drug_preprocess_type=("dgl_graph_from_smile",
+    #                           {"fragment": False, "max_block": 6, "max_sr": 8, "min_frag_atom": 1}),
+    #     drug_attributes="SMILE",
+    #     online_preprocessing_drug=False,
+    #     in_memory_preprocessing_drug=True,
+    #     protein_preprocess_type=(
+    #         "dgl_graph_from_protein_pocket", {"pdb_path": "data/pdb/", "protein_size_limit": 10000}),
+    #     protein_attributes="PDB",
+    #     online_preprocessing_protein=False,
+    #     in_memory_preprocessing_protein=False,
+    #     save_directory="data/drugbank/",
+    #     threads=8
+    # )
+    # dataset_train, dataset_val, dataset_test = torch.utils.data.random_split(dataset, [
+    #                                                                          0.8, 0.1, 0.1])
+    # collate_fn = CollateFactory.create("binding_graph_smile_graph")
+    # data_loader_train = DataLoader(dataset_train, batch_size=32, shuffle=True, num_workers=4, pin_memory=True,
+    #                                collate_fn=collate_fn, drop_last=True)
 
-    data_loader_val = DataLoader(dataset_val, drop_last=False, batch_size=32,
-                                 num_workers=4, pin_memory=False, collate_fn=collate_fn)
-    data_loader_test = DataLoader(dataset_test, drop_last=False, batch_size=32, collate_fn=collate_fn,
-                                  num_workers=4, pin_memory=False)
-    model = ModelFactory.create("attentionsitedti")
+    # data_loader_val = DataLoader(dataset_val, drop_last=False, batch_size=32,
+    #                              num_workers=4, pin_memory=False, collate_fn=collate_fn)
+    # data_loader_test = DataLoader(dataset_test, drop_last=False, batch_size=32, collate_fn=collate_fn,
+    #                               num_workers=4, pin_memory=False)
+    model = ModelFactory.create("AMMVF")
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=1e-4, weight_decay=0.03)
     criterion = torch.nn.BCELoss()
@@ -181,45 +181,45 @@ def main(args):
     device = torch.device("cpu")
     model.to(device)
     epochs = 200
-    accum_iter = 2
-    for epoch in range(epochs):
-        losses = []
-        accs = []
-        model.train()
-        with tqdm(data_loader_train) as tepoch:
-            tepoch.set_description(f"Epoch {epoch}")
-            for batch_idx, (inp, target) in enumerate(tepoch):
-                outs = []
-                for item in range(len(inp[0])):
-                    inpu = (inp[0][item].to(device), inp[1][item].to(device))
-                    out = model(inpu)
-                    outs.append(out)
-                out = torch.stack(outs, dim=0).squeeze(1)
+#     accum_iter = 2
+#     for epoch in range(epochs):
+#         losses = []
+#         accs = []
+#         model.train()
+#         with tqdm(data_loader_train) as tepoch:
+#             tepoch.set_description(f"Epoch {epoch}")
+#             for batch_idx, (inp, target) in enumerate(tepoch):
+#                 outs = []
+#                 for item in range(len(inp[0])):
+#                     inpu = (inp[0][item].to(device), inp[1][item].to(device))
+#                     out = model(inpu)
+#                     outs.append(out)
+#                 out = torch.stack(outs, dim=0).squeeze(1)
 
-                target = target.to(device).view(-1, 1).to(torch.float)
-                loss = criterion(out, target)
-                matches = [torch.round(i) == torch.round(j)
-                           for i, j in zip(out, target)]
-                acc = matches.count(True) / len(matches)
-                accs.append(acc)
-                losses.append(loss.detach().cpu())
-                loss.backward()
-                if ((batch_idx + 1) % accum_iter == 0) or (batch_idx + 1 == len(data_loader_train)):
-                    optimizer.step()
-                    optimizer.zero_grad()
-                acc_mean = np.array(accs).mean()
-                loss_mean = np.array(losses).mean()
-                tepoch.set_postfix(loss=loss_mean, accuracy=100. * acc_mean)
-        scheduler.step()
-        test_func(model, data_loader_val, device)
-        test_func(model, data_loader_test, device)
-        fn = "last_checkpoint_celegans.pt"
-        info_dict = {
-            'epoch': epoch,
-            'net_state': model.state_dict(),
-            'optimizer_state': optimizer.state_dict()
-        }
-        torch.save(info_dict, fn)
+#                 target = target.to(device).view(-1, 1).to(torch.float)
+#                 loss = criterion(out, target)
+#                 matches = [torch.round(i) == torch.round(j)
+#                            for i, j in zip(out, target)]
+#                 acc = matches.count(True) / len(matches)
+#                 accs.append(acc)
+#                 losses.append(loss.detach().cpu())
+#                 loss.backward()
+#                 if ((batch_idx + 1) % accum_iter == 0) or (batch_idx + 1 == len(data_loader_train)):
+#                     optimizer.step()
+#                     optimizer.zero_grad()
+#                 acc_mean = np.array(accs).mean()
+#                 loss_mean = np.array(losses).mean()
+#                 tepoch.set_postfix(loss=loss_mean, accuracy=100. * acc_mean)
+#         scheduler.step()
+#         test_func(model, data_loader_val, device)
+#         test_func(model, data_loader_test, device)
+#         fn = "last_checkpoint_celegans.pt"
+#         info_dict = {
+#             'epoch': epoch,
+#             'net_state': model.state_dict(),
+#             'optimizer_state': optimizer.state_dict()
+#         }
+#         torch.save(info_dict, fn)
 
 
 if __name__ == '__main__':

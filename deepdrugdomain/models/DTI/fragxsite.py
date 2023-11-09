@@ -3,7 +3,7 @@ from typing import Optional, Sequence
 
 from deepdrugdomain.layers.utils import LayerFactory, ActivationFactory
 
-from .factory import ModelFactory
+from ..factory import ModelFactory
 import torch
 from torch import nn
 import torch.nn.functional as F

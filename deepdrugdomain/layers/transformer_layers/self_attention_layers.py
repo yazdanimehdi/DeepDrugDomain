@@ -136,7 +136,6 @@ class Block(nn.Module):
         qk_scale = kwargs["qk_scale"]
         attn_drop = kwargs["attn_drop"]
         drop_path = kwargs["drop_path"]
-        act_layer = ActivationFactory.create(kwargs["act_layer"])
         norm_layer = kwargs["norm_layer"]
 
         self.norm1 = LayerFactory.create(
@@ -150,7 +149,7 @@ class Block(nn.Module):
             norm_layer, dim) if norm_layer is not None else nn.Identity()
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = LayerFactory.create(
-            kwargs["Mlp_block"], dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+            kwargs["Mlp_block"], dim, hidden_features=mlp_hidden_dim, act_layer=kwargs["act_layer"], drop=drop)
 
     def forward(self, x):
         v, attn = self.attn(self.norm1(x))

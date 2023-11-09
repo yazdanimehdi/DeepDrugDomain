@@ -3,3 +3,4 @@ from .utils import LayerFactory
 from .graph_layers import *
 from .regularization import *
 from .normalization import *
+from .bert import *

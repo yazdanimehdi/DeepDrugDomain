@@ -30,7 +30,7 @@ from deepdrugdomain.layers import LayerFactory, ActivationFactory
 from typing import Optional, Sequence
 
 from deepdrugdomain.utils.weight_init import trunc_normal_
-from .factory import ModelFactory
+from ..factory import ModelFactory
 
 
 @ModelFactory.register("attentionsitedti")
@@ -179,8 +179,8 @@ class AttentionSiteDTI(nn.Module):
     """
 
     def __init__(self,
-                 protein_graph_conv_layer: str,
-                 ligand_graph_conv_layer: str,
+                 protein_graph_conv_layer: Sequence[str],
+                 ligand_graph_conv_layer: Sequence[str],
                  protein_input_size: int,
                  ligand_input_size: int,
                  protein_graph_conv_dims: Sequence[int],
@@ -224,7 +224,7 @@ class AttentionSiteDTI(nn.Module):
         assert len(p_dims) - 1 == len(protein_conv_dropout_rate) == len(protein_graph_conv_kwargs) == len(
             protein_conv_normalization), "The number of protein graph convolution layers parameters must be the same"
         self.protein_graph_conv = nn.ModuleList([
-            LayerFactory.create(protein_graph_conv_layer,
+            LayerFactory.create(protein_graph_conv_layer[i],
                                 p_dims[i],
                                 p_dims[i + 1],
                                 normalization=protein_conv_normalization[i],
@@ -236,7 +236,7 @@ class AttentionSiteDTI(nn.Module):
         assert len(l_dims) - 1 == len(ligand_conv_dropout_rate) == len(ligand_graph_conv_kwargs) == len(
             ligand_conv_normalization), "The number of ligand graph convolution layers parameters must be the same"
         self.ligand_graph_conv = nn.ModuleList([
-            LayerFactory.create(ligand_graph_conv_layer,
+            LayerFactory.create(ligand_graph_conv_layer[i],
                                 l_dims[i],
                                 l_dims[i + 1],
                                 normalization=ligand_conv_normalization[i],

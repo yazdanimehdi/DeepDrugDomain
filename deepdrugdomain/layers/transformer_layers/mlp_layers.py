@@ -41,7 +41,8 @@ class Mlp(nn.Module):
         drop = kwargs["drop"]
         bias = kwargs["bias"]
         norm_layer = kwargs["norm_layer"]
-        act_layer = ActivationFactory.create(kwargs["act_layer"])
+        act_layer = ActivationFactory.create(
+            kwargs["act_layer"], function=False)
         hidden_features = kwargs["hidden_features"]
         out_features = kwargs["out_features"]
         use_conv = kwargs["use_conv"]
@@ -54,7 +55,7 @@ class Mlp(nn.Module):
             nn.Conv2d, kernel_size=1) if use_conv else nn.Linear
 
         self.fc1 = linear_layer(in_features, hidden_features, bias=bias[0])
-        self.act = act_layer()
+        self.act = act_layer
         self.drop1 = nn.Dropout(drop_probs[0])
         self.norm = LayerFactory.create(
             norm_layer, hidden_features) if norm_layer is not None else nn.Identity()
