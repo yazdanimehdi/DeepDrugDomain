@@ -86,7 +86,8 @@ def assert_unique_combinations(list1: list, list2: list, list3: list) -> None:
     """
 
     # Assert that all lists have the same length
-    assert len(list1) == len(list2) == len(list3), "All lists must have the same length."
+    assert len(list1) == len(list2) == len(
+        list3), "All lists must have the same length."
 
     # Use a set to track the combinations
     # seen_combinations = set()
@@ -100,21 +101,12 @@ def assert_unique_combinations(list1: list, list2: list, list3: list) -> None:
 
 
 def get_processed_data(online: bool, mapping: Tuple[str, Any], pre_process, in_mem, row_data):
-    """
-    Get processed data for a single attribute based on its processing method.
+    if pre_process is None:
+        return row_data
 
-    Parameters:
-    - online (bool): If online preprocessing is enabled.
-    - mapping (tuple): Mapping information for the attribute.
-    - pre_process (Callable): Preprocessing function or method.
-    - in_mem (bool): If the processed data is stored in memory.
-    - row_data (Any): Raw data for the attribute.
-
-    Returns:
-    - Any: Processed data sample for the attribute.
-    """
     if online:
         return pre_process.preprocess(row_data)
+
     elif in_mem:
         return mapping[1][row_data]
     else:

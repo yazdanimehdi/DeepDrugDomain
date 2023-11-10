@@ -8,7 +8,7 @@ from sklearn.metrics import roc_auc_score, average_precision_score, f1_score, pr
     balanced_accuracy_score
 from torch.optim.lr_scheduler import ExponentialLR
 
-from deepdrugdomain.data import DrugProteinDataset
+from deepdrugdomain.data import CustomDataset
 from deepdrugdomain.data.collate import CollateFactory
 from torch.utils.data import DataLoader
 from deepdrugdomain.models.factory import ModelFactory
@@ -56,113 +56,31 @@ def get_args_parser():
     return parser
 
 
-def get_roce(predList, targetList, roceRate):
-    p = sum(targetList)
-    n = len(targetList) - p
-    predList = [[index, x] for index, x in enumerate(predList)]
-    predList = sorted(predList, key=lambda x: x[1], reverse=True)
-    tp1 = 0
-    fp1 = 0
-    maxIndexs = []
-    for x in predList:
-        if (targetList[x[0]] == 1):
-            tp1 += 1
-        else:
-            fp1 += 1
-            if (fp1 > ((roceRate * n) / 100)):
-                break
-    roce = (tp1 * n) / (p * fp1)
-    return roce
-
-
-def test_func(model, dataloader, device):
-    y_pred = []
-    y_label = []
-    model.eval()
-    for inp, target in dataloader:
-        outs = []
-        for item in range(len(inp[0])):
-            inpu = (inp[0][item].to(device), inp[1][item].to(device))
-            with torch.no_grad():
-                out = model(inpu)
-            outs.append(out)
-        out = torch.stack(outs, dim=0).squeeze(1)
-        y_pred.append(out.detach().cpu())
-        y_label.append(target.cpu())
-
-    y_pred = torch.cat(y_pred, dim=0)
-    y_label = torch.cat(y_label, dim=0)
-    y_pred_c = [round(i.item()) for i in y_pred]
-    roce1 = get_roce(y_pred, y_label, 0.5)
-    roce2 = get_roce(y_pred, y_label, 1)
-    roce3 = get_roce(y_pred, y_label, 2)
-    roce4 = get_roce(y_pred, y_label, 5)
-    print("AUROC: " + str(roc_auc_score(y_label, y_pred)), end=" ")
-    print("PRAUC: " + str(average_precision_score(y_label, y_pred)), end=" ")
-    print("F1 Score: " + str(f1_score(y_label, y_pred_c)), end=" ")
-    print("Precision Score:" + str(precision_score(y_label, y_pred_c)), end=" ")
-    print("Recall Score:" + str(recall_score(y_label, y_pred_c)), end=" ")
-    print("Balanced Accuracy Score " +
-          str(balanced_accuracy_score(y_label, y_pred_c)), end=" ")
-    print("0.5 re Score " + str(roce1), end=" ")
-    print("1 re Score " + str(roce2), end=" ")
-    print("2 re Score " + str(roce3), end=" ")
-    print("5 re Score " + str(roce4))
-
-
 def main(args):
     config = args_to_config(args)
     seed = args.seed
     torch.manual_seed(seed)
     np.random.seed(seed)
-    # wandb.init(
-    #     # set the wandb project where this run will be logged
-    #     project="FragXSiteDTI",
-    #
-    #     # track hyperparameters and run metadata
-    #     config=config
-    # )
-
-    # dataset_train, dataset_val, dataset_test = build_dataset(config=config)
-    # df = pd.read_csv("data/drugbank/drugbankSeqPdb.txt")
-
-    # with open("data/drugbank/DrugBank.txt", 'r') as fp:
-    #     train_raw = fp.read()
-
-    # raw_data = train_raw.split("\n")
-    # shuffle(raw_data)
-    # train_df = pd.DataFrame(
-    #     columns=['SMILE', 'PDB', 'TargetSequence', 'Label'])
-    # for item in raw_data:
-    #     try:
-    #         a = item.split()
-    #         smile = a[2]
-    #         sequence = a[3]
-    #         pdb_code = df.loc[df["sequence"] == sequence]["pdb_id"].item()[0:4]
-    #         if pdb_code is not None:
-    #             label = 1 if a[4] == '1' else 0
-    #             train_df = train_df._append(
-    #                 {'SMILE': smile, 'PDB': pdb_code,
-    #                     'TargetSequence': sequence, 'Label': label},
-    #                 ignore_index=True)
-    #     except:
-    #         pass
-
-    # dataset = DrugProteinDataset(
-    #     train_df.head(10),
-    #     drug_preprocess_type=("dgl_graph_from_smile",
-    #                           {"fragment": False, "max_block": 6, "max_sr": 8, "min_frag_atom": 1}),
-    #     drug_attributes="SMILE",
-    #     online_preprocessing_drug=False,
-    #     in_memory_preprocessing_drug=True,
-    #     protein_preprocess_type=(
-    #         "dgl_graph_from_protein_pocket", {"pdb_path": "data/pdb/", "protein_size_limit": 10000}),
-    #     protein_attributes="PDB",
-    #     online_preprocessing_protein=False,
-    #     in_memory_preprocessing_protein=False,
-    #     save_directory="data/drugbank/",
-    #     threads=8
-    # )
+    dataset = CustomDataset(
+        file_paths=["data/drugbank/DrugBank.txt",
+                    "data/drugbank/drugbankSeqPdb.txt"],
+        common_columns={"sequence": "TargetSequence"},
+        separators=[" ", ","],
+        drug_preprocess_type=("dgl_graph_from_smile",
+                              {"fragment": False, "max_block": 6, "max_sr": 8, "min_frag_atom": 1}),
+        drug_attributes="SMILE",
+        online_preprocessing_drug=False,
+        in_memory_preprocessing_drug=True,
+        protein_preprocess_type=(
+            "dgl_graph_from_protein_pocket", {"pdb_path": "data/pdb/", "protein_size_limit": 10000}),
+        protein_attributes="pdb_id",
+        online_preprocessing_protein=False,
+        in_memory_preprocessing_protein=False,
+        label_attributes="Label",
+        save_directory="data/drugbank/",
+        threads=8
+    )
+    datasets = dataset()
     # dataset_train, dataset_val, dataset_test = torch.utils.data.random_split(dataset, [
     #                                                                          0.8, 0.1, 0.1])
     # collate_fn = CollateFactory.create("binding_graph_smile_graph")

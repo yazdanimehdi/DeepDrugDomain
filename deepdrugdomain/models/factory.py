@@ -124,3 +124,20 @@ class ModelFactory(BaseFactory):
         kwargs = {**default_config, **kwargs}
 
         return cls._registry[key](**kwargs)
+
+    @classmethod
+    def is_model_registered(cls, model_name: str) -> bool:
+        """
+            Check if a model with the given name is registered in the factory's registry.
+
+            This method queries the model registry to determine if a model with the specified
+            name has been added to the registry. The registry is a class-level dictionary
+            storing model names as keys.
+
+            Parameters:
+            model_name (str): The name of the model to check in the registry.
+
+            Returns:
+            bool: True if the model is registered, False otherwise.
+        """
+        return model_name in cls._registry

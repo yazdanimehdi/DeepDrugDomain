@@ -12,7 +12,7 @@ Example Usage:
 >>> from deepdrugdomain.data.collate import CollateFactory
 >>> collate_fn = CollateFactory.create("binding_graph_smile_graph")
 >>> data_loader = DataLoader(dataset, collate_fn=collate_fn)
->>> for (protein_graphs, drug_graphs), targets in data_loader:
+>>> for protein_graphs, drug_graphs, targets in data_loader:
 ...     # Model processing logic here
 """
 
@@ -47,4 +47,4 @@ class BindingSiteSmilesGraphCollate(BaseCollate):
         # Stacking target tensors for batch processing
         batched_targets = torch.stack(targets, 0)
 
-        return (protein_graphs, drug_graphs), batched_targets
+        return protein_graphs, drug_graphs, batched_targets

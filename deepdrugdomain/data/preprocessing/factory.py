@@ -53,7 +53,8 @@ class PreprocessorFactory(BaseFactory):
 
         def decorator(subclass):
             if not issubclass(subclass, AbstractBasePreprocessor):
-                raise TypeError(f"Class {subclass.__name__} is not a subclass of AbstractBasePreprocessor")
+                raise TypeError(
+                    f"Class {subclass.__name__} is not a subclass of AbstractBasePreprocessor")
             cls._registry[key] = subclass
             return subclass
 
@@ -69,6 +70,9 @@ class PreprocessorFactory(BaseFactory):
         :param kwargs: Keyword arguments for preprocessor initialization.
         :return: Instance of the preprocessor.
         """
+        if key is None:
+            return None
+
         if key not in cls._registry:
             raise ValueError(f"Key '{key}' not registered.")
 
