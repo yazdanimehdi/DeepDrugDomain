@@ -1,29 +1,34 @@
-# todo: edit example usage
-
 """
 This module defines abstract and custom dataset classes for use in drug-protein interaction projects.
 
 The `AbstractDataset` class is an abstract base class (ABC) that outlines the structure for dataset handling,
-including methods for downloading, loading, and processing datasets.
+including methods for downloading, loading, processing, and calling datasets as objects.
 
 The `CustomDataset` class extends `AbstractDataset` and implements these methods. It is tailored for merging datasets
 based on common columns and supports various preprocessing configurations. It can optionally associate with a model
 and use its configuration for preprocessing.
 
+The usage of the `CustomDataset` class is demonstrated below, showing how it can be used to create training, validation,
+and test datasets from specified file paths and processing configurations.
+
 Example:
-    >>> custom_dataset = CustomDataset(file_paths=["./data/drug.csv", "./data/protein.csv"],
-    ...                                drug_preprocess_type=[("scale", {})],
-    ...                                protein_preprocess_type=[("encode", {"method": "one_hot"})],
-    ...                                drug_attributes=["molecular_weight", "logP"],
-    ...                                protein_attributes=["sequence"],
-    ...                                common_columns=[{"DrugID": "DID"}, {"ProteinID": "PID"}],
-    ...                                separators=[",", ","],
-    ...                                save_directory="./processed_data",
-    ...                                urls=["http://example.com/drug.csv", "http://example.com/protein.csv"],
-    ...                                threads=4)
-    >>> custom_dataset.download()
-    >>> df = custom_dataset.load()
-    >>> processed_dataset = custom_dataset()
+    >>> dataset = CustomDataset(
+    ...     file_paths=["data/drugbank/DrugBank.txt", "data/drugbank/drugbankSeqPdb.txt"],
+    ...     common_columns={"sequence": "TargetSequence"},
+    ...     separators=[" ", ","],
+    ...     drug_preprocess_type=("dgl_graph_from_smile", {"fragment": False, "max_block": 6, "max_sr": 8, "min_frag_atom": 1}),
+    ...     drug_attributes="SMILE",
+    ...     online_preprocessing_drug=False,
+    ...     in_memory_preprocessing_drug=True,
+    ...     protein_preprocess_type=("dgl_graph_from_protein_pocket", {"pdb_path": "data/pdb/", "protein_size_limit": 10000}),
+    ...     protein_attributes="pdb_id",
+    ...     online_preprocessing_protein=False,
+    ...     in_memory_preprocessing_protein=False,
+    ...     label_attributes="Label",
+    ...     save_directory="data/drugbank/",
+    ...     threads=8
+    ... )
+    >>> dataset_train, dataset_val, dataset_test = dataset.random_split([0.8, 0.1, 0.1])
 """
 
 from abc import ABC, abstractmethod
@@ -74,20 +79,31 @@ class AbstractDataset(ABC):
 
 
 class CustomDataset(AbstractDataset):
-    # todo: edit attributes
     """
-    A dataset class that handles downloading, loading, and merging of datasets based on a common column.
-    It supports preprocessing configuration and associates with a model if specified.
+    A dataset class that handles the complexities of setting up a drug-protein interaction dataset. This class manages
+    downloading, loading, and merging datasets from multiple sources, ensuring that they align on a common set of columns.
+    It offers support for preprocessing configurations for both drug and protein data and can be linked to an associated
+    model's configuration.
 
     Attributes:
-        file_paths (List[str]): A list of file paths for the dataset files.
-        drug_preprocess_type (Union[Tuple[str, Dict], List[Tuple[str, Dict]], None]): Preprocessing info for drugs.
-        protein_preprocess_type (Union[Tuple[str, Dict], List[Tuple[str, Dict]], None]): Preprocessing info for proteins.
-        save_directory (str, optional): Directory to save the processed datasets.
-        urls (List[str], optional): List of URLs to download the datasets from.
-        common_columns (List[Dict[str, str]], optional): Mapping for common columns across datasets.
-        separators (List[str]): List of separators used in the dataset files.
-        associated_model (str, optional): Model associated with the dataset for loading configurations.
+        file_paths (List[str]): List of file paths for the dataset files.
+        drug_preprocess_type (Optional[Union[Tuple[str, Dict], List[Tuple[str, Dict]]]]): Preprocessing information for drugs.
+        drug_attributes (Union[List[str], str]): Attributes to extract for drugs from the dataset.
+        online_preprocessing_drug (Union[List[bool], bool]): Flags to determine if drugs need online preprocessing.
+        in_memory_preprocessing_drug (Union[List[bool], bool]): Flags to determine if drugs need in-memory preprocessing.
+        protein_preprocess_type (Optional[Union[Tuple[str, Dict], List[Tuple[str, Dict]]]]): Preprocessing information for proteins.
+        protein_attributes (Union[List[str], str]): Attributes to extract for proteins from the dataset.
+        online_preprocessing_protein (Union[List[bool], bool]): Flags to determine if proteins need online preprocessing.
+        in_memory_preprocessing_protein (Union[List[bool], bool]): Flags to determine if proteins need in-memory preprocessing.
+        label_attributes (Union[List[str], str]): Attributes used for the labels in the dataset.
+        label_preprocess_type (Optional[Union[Tuple[str, Dict], List[Tuple[str, Dict]]]]): Preprocessing information for labels.
+        online_preprocessing_label (Union[List[bool], bool]): Flags to determine if labels need online preprocessing.
+        in_memory_preprocessing_label (Union[List[bool], bool]): Flags to determine if labels need in-memory preprocessing.
+        save_directory (Optional[str]): Directory to save the processed datasets.
+        urls (Optional[Union[List[str], str]]): URLs from where to download the datasets.
+        common_columns (Optional[Union[Dict[str, str], List[Dict[str, str]]]]): Common columns mapping for merging datasets.
+        separators (Union[List[str], str]): Column separators for reading the datasets.
+        associated_model (Optional[str]): The model associated with the dataset for loading configurations.
         threads (int): Number of threads to use for downloading and processing.
     """
 
@@ -152,8 +168,18 @@ class CustomDataset(AbstractDataset):
         self._validate_lengths()
 
     def _load_model_config(self, associated_model, drug_preprocess_type, protein_preprocess_type):
-        """Loads the model configuration from a JSON file."""
+        """
+            Load model configuration for preprocessing from a specified JSON file. If specific preprocess types for drugs or proteins 
+            are not provided, the method attempts to load these configurations from the model's config file.
 
+            Parameters:
+                associated_model (str): The name of the model whose configuration is to be loaded.
+                drug_preprocess_type (Optional[Union[Tuple[str, Dict], List[Tuple[str, Dict]]]]): Provided drug preprocessing information.
+                protein_preprocess_type (Optional[Union[Tuple[str, Dict], List[Tuple[str, Dict]]]]): Provided protein preprocessing information.
+
+            Raises:
+                ValueError: If the specified model is not registered in the ModelFactory.
+        """
         if not ModelFactory.is_model_registered(associated_model):
             raise ValueError("Error: Model not found")
 
@@ -168,7 +194,13 @@ class CustomDataset(AbstractDataset):
             'protein_preprocess_type')
 
     def _validate_lengths(self):
-        """Validates the lengths of the provided lists."""
+        """
+            Validates that the provided lists of file paths, URLs, and common columns have compatible lengths. This ensures that each file path 
+            has a corresponding URL and common column information for merging datasets.
+
+            Raises:
+                ValueError: If the lengths of file paths, URLs, and common columns do not match.
+        """
         if self.urls and len(self.file_paths) != len(self.urls):
             raise ValueError("File paths and URLs must have the same length.")
 
@@ -178,7 +210,13 @@ class CustomDataset(AbstractDataset):
                 "File paths - 1 and common columns must have the same length.")
 
     def download(self, *args, **kwargs) -> None:
-        """Downloads dataset files from provided URLs to the specified file paths."""
+        """
+            Downloads dataset files from their respective URLs to the specified file paths. If a file already exists at a given path, 
+            the download is skipped for that file. If the download fails or the file is only partially downloaded, it is removed.
+
+            Raises:
+                requests.exceptions.RequestException: If an HTTP request exception occurs during file download.
+        """
         if self.urls is None:
             return
 
@@ -208,7 +246,13 @@ class CustomDataset(AbstractDataset):
                     os.remove(file_path)
 
     def load(self) -> pd.DataFrame:
-        """Loads, merges, and returns a combined dataframe from the dataset files."""
+        """
+            Loads multiple datasets from the provided file paths using their respective separators and merges them into a single DataFrame 
+            based on the mappings defined in 'common_columns'. It uses 'process_file' to process each individual file.
+
+            Returns:
+                pd.DataFrame: The merged DataFrame containing all data from the provided files.
+        """
         dfs = []
         for file_path, separator in zip(self.file_paths, self.separators):
             df = self.process_file(file_path, separator)
@@ -226,11 +270,31 @@ class CustomDataset(AbstractDataset):
 
     @classmethod
     def process_file(self, file_path, separator) -> pd.DataFrame:
-        """Processes the file for loading dataset as required."""
+        """
+            Reads a CSV file into a DataFrame using the provided separator. This class method can be overridden by subclasses to 
+            implement custom file reading logic.
+
+            Parameters:
+                file_path (str): The path to the CSV file to be processed.
+                separator (str): The delimiter to use when parsing the CSV file.
+
+            Returns:
+                pd.DataFrame: The DataFrame obtained from the CSV file.
+        """
         return pd.read_csv(file_path, sep=separator)
 
     def __call__(self, random_split: Optional[List[int]] = None) -> Dataset:
-        """Creates and returns a processed dataset ready for model consumption."""
+        """
+            When called, the method creates a DrugProteinDataset from the loaded data and optionally splits it into training, 
+            validation, and test datasets based on the provided proportions in 'random_split'.
+
+            Parameters:
+                random_split (Optional[List[float]]): A list of proportions for splitting the dataset. If provided, the sum of proportions 
+                                                    must equal 1.
+
+            Returns:
+                Union[Dataset, Tuple[Dataset, ...]]: The complete dataset or a tuple containing split datasets.
+        """
         df = self.load()
         dataset = DrugProteinDataset(df,
                                      self.drug_preprocess_type, self.drug_attributes, self.online_preprocessing_drug, self.in_memory_preprocessing_drug,
