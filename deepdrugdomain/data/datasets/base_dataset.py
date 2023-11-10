@@ -37,6 +37,7 @@ import requests
 from deepdrugdomain.models.factory import ModelFactory
 from .default_dataset import DrugProteinDataset
 from torch.utils.data import Dataset
+import torch
 
 
 class AbstractDataset(ABC):
@@ -56,8 +57,9 @@ class AbstractDataset(ABC):
         """
         pass
 
+    @classmethod
     @abstractmethod
-    def process(self, *args, **kwargs) -> Any:
+    def process_file(self, *args, **kwargs) -> Any:
         """
         Processes the dataset.
         """
@@ -205,11 +207,11 @@ class CustomDataset(AbstractDataset):
                 if os.path.exists(file_path):
                     os.remove(file_path)
 
-    def load(self) -> Any:
+    def load(self) -> pd.DataFrame:
         """Loads, merges, and returns a combined dataframe from the dataset files."""
         dfs = []
         for file_path, separator in zip(self.file_paths, self.separators):
-            df = pd.read_csv(file_path, sep=separator)
+            df = self.process_file(file_path, separator)
             dfs.append(df)
 
         combined_df = dfs[0]
@@ -222,16 +224,19 @@ class CustomDataset(AbstractDataset):
 
         return combined_df
 
-    def process(self) -> Any:
-        """Processes the loaded dataset as required."""
-        pass
+    @classmethod
+    def process_file(self, file_path, separator) -> pd.DataFrame:
+        """Processes the file for loading dataset as required."""
+        return pd.read_csv(file_path, sep=separator)
 
-    def __call__(self) -> Dataset:
+    def __call__(self, random_split: Optional[List[int]] = None) -> Dataset:
         """Creates and returns a processed dataset ready for model consumption."""
         df = self.load()
-        return DrugProteinDataset(df,
-                                  self.drug_preprocess_type, self.drug_attributes, self.online_preprocessing_drug, self.in_memory_preprocessing_drug,
-                                  self.protein_preprocess_type, self.protein_attributes, self.online_preprocessing_protein, self.in_memory_preprocessing_protein,
-                                  self.label_attributes, self.label_preprocess_type, self.online_preprocessing_label, self.in_memory_preprocessing_label,
-                                  self.save_directory,
-                                  self.threads)
+        dataset = DrugProteinDataset(df,
+                                     self.drug_preprocess_type, self.drug_attributes, self.online_preprocessing_drug, self.in_memory_preprocessing_drug,
+                                     self.protein_preprocess_type, self.protein_attributes, self.online_preprocessing_protein, self.in_memory_preprocessing_protein,
+                                     self.label_attributes, self.label_preprocess_type, self.online_preprocessing_label, self.in_memory_preprocessing_label,
+                                     self.save_directory,
+                                     self.threads)
+
+        return torch.utils.data.random_split(dataset, random_split) if random_split else dataset

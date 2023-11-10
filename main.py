@@ -80,17 +80,15 @@ def main(args):
         save_directory="data/drugbank/",
         threads=8
     )
-    datasets = dataset()
-    # dataset_train, dataset_val, dataset_test = torch.utils.data.random_split(dataset, [
-    #                                                                          0.8, 0.1, 0.1])
-    # collate_fn = CollateFactory.create("binding_graph_smile_graph")
-    # data_loader_train = DataLoader(dataset_train, batch_size=32, shuffle=True, num_workers=4, pin_memory=True,
-    #                                collate_fn=collate_fn, drop_last=True)
+    dataset_train, dataset_val, dataset_test = dataset([0.8, 0.1, 0.1])
+    collate_fn = CollateFactory.create("binding_graph_smile_graph")
+    data_loader_train = DataLoader(dataset_train, batch_size=32, shuffle=True, num_workers=4, pin_memory=True,
+                                   collate_fn=collate_fn, drop_last=True)
 
-    # data_loader_val = DataLoader(dataset_val, drop_last=False, batch_size=32,
-    #                              num_workers=4, pin_memory=False, collate_fn=collate_fn)
-    # data_loader_test = DataLoader(dataset_test, drop_last=False, batch_size=32, collate_fn=collate_fn,
-    #                               num_workers=4, pin_memory=False)
+    data_loader_val = DataLoader(dataset_val, drop_last=False, batch_size=32,
+                                 num_workers=4, pin_memory=False, collate_fn=collate_fn)
+    data_loader_test = DataLoader(dataset_test, drop_last=False, batch_size=32, collate_fn=collate_fn,
+                                  num_workers=4, pin_memory=False)
     model = ModelFactory.create("AMMVF")
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=1e-4, weight_decay=0.03)
