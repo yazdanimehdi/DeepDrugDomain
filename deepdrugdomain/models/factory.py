@@ -1,46 +1,46 @@
 """
-model_factory.py - Factory for creating instances of model classes.
+model_factory.py - A dynamic factory for registering and creating model instances.
 
-The ModelFactory facilitates easy registration of model classes and subsequent instantiation. 
-Models must inherit from `torch.nn.Module`. The factory can instantiate models using configurations 
-from a JSON config file (either the default one provided during registration or an external one) 
-or directly through keyword arguments. If any arguments are missing during instantiation, the 
-factory will use the default values provided either directly during registration or from the default 
-config file.
+The ModelFactory streamlines the process of registering model classes and instantiating them with ease. 
+All models must extend `torch.nn.Module`. The factory enables model instantiation with configurations 
+from a JSON config file, which can hold default and version-specific configurations, or through explicit 
+keyword arguments. Missing instantiation arguments are supplied from the default values which may be set 
+during class registration using a decorator or a JSON configuration file. If a version-specific configuration 
+is not registered, the factory issues a warning and uses the default configuration.
 
 Example Usage:
 
-Registering a model with a default config file:
+Registering a model with a JSON config file containing multiple version configurations:
 >>> from deepdrugdomain.models import ModelFactory
 >>> import torch.nn as nn
 >>>
->>> @ModelFactory.register("my_model_type")
+>>> @ModelFactory.register("my_model_type", model_config_path="my_model_config.json")
 >>> class MyModel(nn.Module):
->>>     def __init__(self, num_layers, hidden_size):
+>>>     def __init__(self, learning_rate, batch_size, num_layers):
 >>>         super().__init__()
->>>         self.num_layers = num_layers
->>>         self.hidden_size = hidden_size
+>>>         # Model layers and operations defined here
 
-Registering a model with directly provided default values:
->>> @ModelFactory.register("my_model_type", default_values={"num_layers": 2, "hidden_size": 64})
+Registering a model and providing direct default values, which are not version-specific:
+>>> @ModelFactory.register("my_model_type", default_values={"learning_rate": 0.01, "batch_size": 32, "num_layers": 2})
 >>> class MyModel(nn.Module):
->>>     def __init__(self, num_layers, hidden_size):
+>>>     def __init__(self, learning_rate, batch_size, num_layers):
 >>>         super().__init__()
->>>         self.num_layers = num_layers
->>>         self.hidden_size = hidden_size
+>>>         # Model layers and operations defined here
 
-Instantiating a model:
->>> model = ModelFactory.create("my_model_type", config_path="path_to_config.json")
-... # OR
->>> model = ModelFactory.create("my_model_type", num_layers=3, hidden_size=128)
+Instantiating a model with default parameters when no version is specified:
+>>> model_default = ModelFactory.create("my_model_type")
+>>> model_human_version = ModelFactory.create("my_model_type", version="human")
 
-Ensure that the model class is registered with its associated key before instantiation and 
-that it inherits from `torch.nn.Module`.
+Creating a model instance using a specified configuration, overriding the defaults if provided:
+>>> model_override = ModelFactory.create("my_model_type", learning_rate=0.002, batch_size=64, num_layers=4)
+
+Models must be registered under a unique key and confirm to `torch.nn.Module` for successful instantiation.
 """
 
 
 import os
 import json
+import warnings
 from typing import Type, Dict, Any, Optional
 from torch.nn import Module
 from deepdrugdomain.utils import BaseFactory
@@ -48,96 +48,128 @@ from deepdrugdomain.utils import BaseFactory
 
 class ModelFactory(BaseFactory):
     """
-    Factory for registering and creating model instances.
+        Factory class for model registration and instantiation.
 
-    The factory facilitates easy registration and instantiation of models.
-    Models can be instantiated using configurations from a JSON config file or 
-    directly via keyword arguments. All registered models must inherit from nn.Module.
+        The ModelFactory class allows for the registration of model classes and their configurations.
+        It supports creating model instances with either default or version-specific configurations.
+        A single JSON file may contain multiple version-specific configurations along with a default configuration.
 
-    Attributes:
-    - _registry: Internal registry for mapping model keys to model classes.
-    - _default_args: Dictionary holding the default values for required arguments.
+        Attributes:
+            _registry (Dict[str, Type[Module]]): Registry mapping model keys to model classes.
+            _default_args (Dict[str, Dict[str, Any]]): Default and version-specific configurations for registered models.
+            _config_dir (str): Path to the configuration directory where JSON files are stored.
     """
 
     _registry: Dict[str, Type[Module]] = {}
     _default_args: Dict[str, Dict[str, Any]] = {}
+    _config_dir: str = 'deepdrugdomain/configs'
 
     @classmethod
-    def register(cls, key: str, default_values: Optional[Dict[str, Any]] = None, config_dir: str = 'deepdrugdomain/models/configs'):
+    def register(cls, key: str, model_config_path: Optional[str] = None):
         """
-        Decorator method for registering a model class.
+            Register a model class with the factory.
 
-        Parameters:
-        - key: Unique key to identify the model class.
-        - default_values: Directly provided default values for the model.
-        - config_dir: Directory containing the default JSON configuration files for models.
+            This decorator function registers the given model class under the specified key. If a configuration
+            path is not provided, it tries to load the configuration from the default configs directory.
 
-        Returns:
-        - Decorator function.
+            Args:
+                key (str): The key associated with the model class.
+                model_config_path (Optional[str]): Custom path to the model's configuration file.
+
+            Returns:
+                A decorator function that takes a model class and registers it.
+
+            Examples:
+                >>> @ModelFactory.register("my_model")
+                ... class MyModel(nn.Module):
+                ...     # model definition
         """
-
         def decorator(model_class: Type[Module]):
             if not issubclass(model_class, Module):
                 raise TypeError(
                     f"Class {model_class.__name__} must be a subclass of torch.nn.Module")
 
-            if default_values is None:
-                # Load default config for the model from the specified directory
-                config_path = os.path.join(config_dir, f"{key}.json")
-                if not os.path.exists(config_path):
-                    raise FileNotFoundError(
-                        f"Default config file for model '{key}' not found at {config_path} and no default values provided.")
+            # Load config for the model from the specified directory
+            config_path = os.path.join(
+                cls._config_dir, f"{key}.json") if model_config_path is None else model_config_path
+            if not os.path.exists(config_path):
+                raise FileNotFoundError(
+                    f"Config file for model '{key}' not found at {config_path}.")
 
-                with open(config_path, 'r') as file:
-                    config = json.load(file)
-                cls._default_args[key] = config
-            else:
-                cls._default_args[key] = default_values
+            with open(config_path, 'r') as file:
+                config = json.load(file)
 
+            config = config['model']
+            # Register the model with its default config and any version-specific configs
+            cls._default_args[key] = config.get('default', {})
+            for version, version_config in config.items():
+                if version != 'default':  # Skip the 'default' key
+                    cls._registry[f"{key}_{version}"] = model_class
+                    cls._default_args[f"{key}_{version}"] = version_config
+
+            # Also register the model with the default configuration
             cls._registry[key] = model_class
             return model_class
 
         return decorator
 
     @classmethod
-    def create(cls, key: str, config_path: str = None, **kwargs) -> Module:
+    def create(cls, key: str, version: Optional[str] = None, **kwargs) -> Module:
         """
-        Create and return an instance of the model.
+            Create an instance of a registered model with the specified or default configuration.
 
-        Parameters:
-        - key: Unique key to fetch the model class from the registry.
-        - config_path: Path to JSON file holding the model's configuration (overrides default config).
-        - kwargs: Additional keyword arguments for model initialization.
+            If a version is specified and a configuration for it exists, the corresponding configuration
+            is used; otherwise, it falls back to the default configuration with a warning.
 
-        Returns:
-        - Model instance.
-        """
-        if key not in cls._registry:
-            raise ValueError(f"Model key '{key}' not registered.")
-
-        default_config = cls._default_args.get(key, {})
-        if config_path:
-            with open(config_path, 'r') as file:
-                override_config = json.load(file)
-                default_config.update(override_config)
-
-        kwargs = {**default_config, **kwargs}
-
-        return cls._registry[key](**kwargs)
-
-    @classmethod
-    def is_model_registered(cls, model_name: str) -> bool:
-        """
-            Check if a model with the given name is registered in the factory's registry.
-
-            This method queries the model registry to determine if a model with the specified
-            name has been added to the registry. The registry is a class-level dictionary
-            storing model names as keys.
-
-            Parameters:
-            model_name (str): The name of the model to check in the registry.
+            Args:
+                key (str): The key for the model to instantiate.
+                version (Optional[str]): The version name to look for a specific configuration.
+                **kwargs: Additional keyword arguments to pass to the model constructor.
 
             Returns:
-            bool: True if the model is registered, False otherwise.
+                An instance of the requested model with the appropriate configuration.
+
+            Raises:
+                ValueError: If the model key is not registered.
+
+            Examples:
+                >>> model_instance = ModelFactory.create("my_model", "human")
+                >>> model_instance_default = ModelFactory.create("my_model")
         """
-        return model_name in cls._registry
+
+        model_key = f"{key}_{version}" if version and f"{key}_{version}" in cls._registry else key
+        if version and f"{key}_{version}" not in cls._registry:
+            warnings.warn(
+                f"version '{version}' configuration not found for model '{key}'. Using default configuration.", UserWarning)
+
+        # Use default configuration as a base; override with version-specific if exists
+        default_config = cls._default_args.get(key, {})
+        version_config = cls._default_args.get(model_key, {})
+        combined_config = {**default_config, **
+                           version_config, **kwargs}  # Merge configurations
+
+        # Use base model class registry for instantiation
+        return cls._registry[key](**combined_config)
+
+    @classmethod
+    def is_model_registered(cls, key: str, version: Optional[str] = None) -> bool:
+        """
+            Check if a model is registered with the factory under the given key and version.
+
+            Args:
+                key (str): The key associated with the model class.
+                version (Optional[str]): The version name to check for a specific registration.
+
+            Returns:
+                bool: True if the model is registered with the specified version, False otherwise.
+
+            Examples:
+                >>> ModelFactory.is_model_registered("my_model", "human")
+                True
+                >>> ModelFactory.is_model_registered("my_model", "alien")
+                False
+                >>> ModelFactory.is_model_registered("my_model")
+                True
+        """
+        model_key = f"{key}_{version}" if version else key
+        return model_key in cls._registry

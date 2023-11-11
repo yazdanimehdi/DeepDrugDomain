@@ -1,37 +1,4 @@
-"""
-CustomDrugProteinDataset Module
-===============================
 
-This module provides a PyTorch dataset implementation for handling drug-protein pairs.
-The dataset has the ability to preprocessing data both online (during training) and offline (before training).
-For handling large datasets that don't fit in memory, it incorporates an automatic sharding mechanism that
-segments the dataset into manageable chunks based on available system memory.
-
-When instantiated, the dataset will check if preprocessing has been completed (based on available shard files).
-If preprocessing is complete, it will directly load the data from these shards. If not, it will preprocessing
-the data and save them as shards for efficient future access.
-
-Features:
----------
-- Online and Offline Preprocessing: Choose to preprocessing data on-the-fly or ahead of time.
-- Memory-Efficient Sharding: Automatically shard large datasets based on system memory.
-- Dynamic Shard Size Calculation: Determine shard sizes based on data and memory sizes.
-- Easy Extension: Designed to be easily extensible for different preprocessing techniques.
-
-Example Usage:
---------------
-from custom_drug_protein_dataset import CustomDrugProteinDataset
-
-# Using offline preprocessing
-dataset = DrugProteinDataset(data, data_type="drug", preprocess_type="example_preprocess")
-
-# Using online preprocessing
-dataset = DrugProteinDataset(data, data_type="drug", preprocess_type="example_preprocess", online_preprocessing=True)
-
-Classes:
---------
-- DrugProteinDataset: The primary dataset class handling data loading, preprocessing, and sharding.
-"""
 import json
 import os
 import pandas as pd
@@ -105,46 +72,58 @@ class DrugProteinDataset(Dataset):
 
         self.data = data
 
-        self.drug_preprocess_type = ensure_list(drug_preprocess_type)
+        self.drug_preprocess_type = [x if x else (
+            None, {}) for x in ensure_list(drug_preprocess_type)]
         self.drug_attributes = ensure_list(drug_attributes)
         self.online_drug = ensure_list(online_preprocessing_drug)
         self.in_mem_drug = ensure_list(in_memory_preprocessing_drug)
-        assert len(self.drug_preprocess_type) == len(self.drug_attributes) == len(self.online_drug) == len(
-            self.in_mem_drug), "You must provide all the required fields for each drug preprocessor"
+
         self.drug_preprocessors = [PreprocessorFactory.create(i, **kw) for i, kw in
                                    self.drug_preprocess_type]
 
-        self.protein_preprocess_type = ensure_list(protein_preprocess_type)
+        self.protein_preprocess_type = [x if x else (
+            None, {}) for x in ensure_list(protein_preprocess_type)]
         self.protein_attributes = ensure_list(protein_attributes)
         self.online_protein = ensure_list(online_preprocessing_protein)
         self.in_mem_protein = ensure_list(in_memory_preprocessing_protein)
-        assert len(self.protein_preprocess_type) == len(self.protein_attributes) == len(self.online_protein) == len(
-            self.in_mem_protein), "You must provide all the required fields for each protein preprocessor"
+
         self.protein_preprocessor = [PreprocessorFactory.create(i, **kw) for i, kw in
                                      self.protein_preprocess_type]
 
-        self.label_preprocess_type = ensure_list(label_preprocess_type)
+        self.label_preprocess_type = [x if x else (
+            None, {}) for x in ensure_list(label_preprocess_type)]
         self.label_attributes = ensure_list(label_attributes)
         self.online_label = ensure_list(online_preprocessing_label)
         self.in_mem_label = ensure_list(in_memory_preprocessing_label)
 
-        if self.label_preprocess_type == [None]:
+        if self.label_preprocess_type == [None, {}]:
             self.label_preprocess_type = [
                 (None, {})] * len(self.label_attributes)
 
-        assert len(self.label_preprocess_type) == len(self.label_attributes) == len(self.online_label) == len(
-            self.in_mem_label), "You must provide all the required fields for each label preprocessor"
         self.label_preprocessor = [PreprocessorFactory.create(
             i, **kw) for i, kw in self.label_preprocess_type]
 
         self.save_directory = save_directory
         self.threads = threads
 
+        self._validate_lengths()
+
         self.mapping_drug = self._initialize_preprocesses("drug")
         self.mapping_protein = self._initialize_preprocesses("protein")
         self.mapping_label = self._initialize_preprocesses("label")
 
         self._clean_data()
+
+    def _validate_lengths(self) -> None:
+        """
+        Validate that the lengths of the attributes match.
+        """
+        assert len(self.drug_preprocess_type) == len(self.drug_attributes) == len(self.online_drug) == len(
+            self.in_mem_drug), "You must provide all the required fields for each drug preprocessor"
+        assert len(self.protein_preprocess_type) == len(self.protein_attributes) == len(self.online_protein) == len(
+            self.in_mem_protein), "You must provide all the required fields for each protein preprocessor"
+        assert len(self.label_preprocess_type) == len(self.label_attributes) == len(self.online_label) == len(
+            self.in_mem_label), "You must provide all the required fields for each label preprocessor"
 
     def _initialize_label_preprocess(self) -> List[Tuple[Any, Dict[Any, Any]]]:
         all_data = self._get_data_by_type("label")

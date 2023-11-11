@@ -15,6 +15,12 @@ from deepdrugdomain.models.factory import ModelFactory
 from deepdrugdomain.utils.config import args_to_config
 from pathlib import Path
 from tqdm import tqdm
+import deepdrugdomain as ddd
+
+
+dataset = ddd.datasets.celegans(model="attentionsitedti")
+model = ddd.models.attentionsitedti()
+ddd.train(dataset, model)
 
 
 def get_args_parser():

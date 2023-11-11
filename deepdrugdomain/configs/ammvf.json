@@ -1,0 +1,80 @@
+{
+    "model": {
+        "default": {
+            "n_fingerprint": 10000,
+            "atom_dim": 34,
+            "hidden_dim": 64,
+            "protein_dim": 100,
+            "ligand_graph_conv_layer": [
+                "dgl_gat",
+                "dgl_gat",
+                "dgl_gat"
+            ],
+            "ligand_graph_conv_layer_args": [
+                {
+                    "num_heads": 3
+                },
+                {
+                    "num_heads": 3
+                },
+                {
+                    "num_heads": 3
+                }
+            ],
+            "ligand_graph_conv_layer_dims": [
+                64,
+                64
+            ],
+            "ligand_conv_dropout_rate": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "ligand_conv_normalization": [
+                null,
+                null,
+                null
+            ],
+            "encoder_block": "bert_encoder",
+            "encoder_block_args": {},
+            "decoder_block": "ammvf_decoder_block",
+            "decoder_block_args": {
+                "hid_dim": 64,
+                "n_layers": 3,
+                "n_heads": 8,
+                "pf_dim": 256,
+                "decoder_layer": "ammvf_decoder_layer",
+                "self_attention": "transformer_attention",
+                "feed_forward": "ammvf_position_wise_ff",
+                "dropout": 0.1
+            },
+            "head_dims": [
+                192,
+                64,
+                1
+            ],
+            "head_dropout": [
+                0.1,
+                0.1,
+                0.1
+            ],
+            "head_activation": [
+                "relu",
+                "relu",
+                "relu"
+            ],
+            "inter_attention_block": "ammvf_interaction_block",
+            "inter_attention_block_args": {
+                "hid_dim": 64,
+                "n_heads": 8,
+                "attention_layer": "transformer_attention"
+            },
+            "tensor_network_block": "ammvf_tensor_network_block",
+            "tensor_network_block_args": {
+                "k_feature": 16,
+                "hid_dim": 64,
+                "k_dim": 16
+            }
+        }
+    }
+}
