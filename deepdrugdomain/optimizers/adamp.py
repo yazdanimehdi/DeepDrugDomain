@@ -12,6 +12,7 @@ import torch
 import torch.nn.functional as F
 from torch.optim.optimizer import Optimizer
 import math
+from .factory import OptimizerFactory
 
 
 def _channel_view(x) -> torch.Tensor:
@@ -28,18 +29,22 @@ def projection(p, grad, perturb, delta: float, wd_ratio: float, eps: float):
     for view_func in [_channel_view, _layer_view]:
         param_view = view_func(p)
         grad_view = view_func(grad)
-        cosine_sim = F.cosine_similarity(grad_view, param_view, dim=1, eps=eps).abs_()
+        cosine_sim = F.cosine_similarity(
+            grad_view, param_view, dim=1, eps=eps).abs_()
 
         # FIXME this is a problem for PyTorch XLA
         if cosine_sim.max() < delta / math.sqrt(param_view.size(1)):
-            p_n = p / param_view.norm(p=2, dim=1).add_(eps).reshape(expand_size)
-            perturb -= p_n * view_func(p_n * perturb).sum(dim=1).reshape(expand_size)
+            p_n = p / \
+                param_view.norm(p=2, dim=1).add_(eps).reshape(expand_size)
+            perturb -= p_n * \
+                view_func(p_n * perturb).sum(dim=1).reshape(expand_size)
             wd = wd_ratio
             return perturb, wd
 
     return perturb, wd
 
 
+@OptimizerFactory.register('adamp')
 class AdamP(Optimizer):
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8,
                  weight_decay=0, delta=0.1, wd_ratio=0.1, nesterov=False):
@@ -82,7 +87,8 @@ class AdamP(Optimizer):
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
 
-                denom = (exp_avg_sq.sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
+                denom = (exp_avg_sq.sqrt() /
+                         math.sqrt(bias_correction2)).add_(group['eps'])
                 step_size = group['lr'] / bias_correction1
 
                 if nesterov:
@@ -93,7 +99,8 @@ class AdamP(Optimizer):
                 # Projection
                 wd_ratio = 1.
                 if len(p.shape) > 1:
-                    perturb, wd_ratio = projection(p, grad, perturb, group['delta'], group['wd_ratio'], group['eps'])
+                    perturb, wd_ratio = projection(
+                        p, grad, perturb, group['delta'], group['wd_ratio'], group['eps'])
 
                 # Weight decay
                 if group['weight_decay'] > 0:

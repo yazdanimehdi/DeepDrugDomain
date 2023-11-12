@@ -10,8 +10,12 @@ from typing import List, Optional
 import torch
 from torch import Tensor
 
+from .factory import OptimizerFactory
 
 # Modified from github.com/pytorch/pytorch/blob/v1.12.1/torch/optim/adamw.py.
+
+
+@OptimizerFactory.register('nadamw')
 class NAdamW(torch.optim.Optimizer):
     r"""Implements NAdamW algorithm.
 
@@ -105,7 +109,8 @@ class NAdamW(torch.optim.Optimizer):
                     continue
                 params_with_grad.append(p)
                 if p.grad.is_sparse:
-                    raise RuntimeError('NAdamW does not support sparse gradients')
+                    raise RuntimeError(
+                        'NAdamW does not support sparse gradients')
                 grads.append(p.grad)
 
                 state = self.state[p]
@@ -114,9 +119,11 @@ class NAdamW(torch.optim.Optimizer):
                 if len(state) == 0:
                     state['step'] = torch.tensor(0.)
                     # Exponential moving average of gradient values
-                    state['exp_avg'] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                    state['exp_avg'] = torch.zeros_like(
+                        p, memory_format=torch.preserve_format)
                     # Exponential moving average of squared gradient values
-                    state['exp_avg_sq'] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                    state['exp_avg_sq'] = torch.zeros_like(
+                        p, memory_format=torch.preserve_format)
 
                 exp_avgs.append(state['exp_avg'])
                 exp_avg_sqs.append(state['exp_avg_sq'])
@@ -237,7 +244,8 @@ def _single_tensor_nadamw(
             # The official PyTorch implementation of NAdam uses a different algorithm.
             exp_avg = exp_avg.mul(beta1).add_(grad, alpha=1 - beta1)
 
-            denom = (exp_avg_sq.sqrt() / (bias_correction2_sqrt * step_size_neg)).add_(eps / step_size_neg)
+            denom = (exp_avg_sq.sqrt() / (bias_correction2_sqrt *
+                     step_size_neg)).add_(eps / step_size_neg)
             param.addcdiv_(exp_avg, denom)
         else:
             step = step_t.item()
@@ -280,10 +288,14 @@ def _multi_tensor_nadamw(
     if maximize:
         grads = torch._foreach_neg(tuple(grads))  # type: ignore[assignment]
 
-    grads = [torch.view_as_real(x) if torch.is_complex(x) else x for x in grads]
-    exp_avgs = [torch.view_as_real(x) if torch.is_complex(x) else x for x in exp_avgs]
-    exp_avg_sqs = [torch.view_as_real(x) if torch.is_complex(x) else x for x in exp_avg_sqs]
-    params = [torch.view_as_real(x) if torch.is_complex(x) else x for x in params]
+    grads = [torch.view_as_real(x) if torch.is_complex(
+        x) else x for x in grads]
+    exp_avgs = [torch.view_as_real(x) if torch.is_complex(
+        x) else x for x in exp_avgs]
+    exp_avg_sqs = [torch.view_as_real(x) if torch.is_complex(
+        x) else x for x in exp_avg_sqs]
+    params = [torch.view_as_real(x) if torch.is_complex(
+        x) else x for x in params]
 
     # update steps
     torch._foreach_add_(state_steps, 1)
@@ -322,7 +334,8 @@ def _multi_tensor_nadamw(
 
         exp_avg_sq_sqrt = torch._foreach_sqrt(exp_avg_sqs)
         torch._foreach_div_(
-            exp_avg_sq_sqrt, torch._foreach_mul(bias_correction2_sqrt, step_size)
+            exp_avg_sq_sqrt, torch._foreach_mul(
+                bias_correction2_sqrt, step_size)
         )
         eps_over_step_size = torch._foreach_div(step_size, eps)
         torch._foreach_reciprocal_(eps_over_step_size)

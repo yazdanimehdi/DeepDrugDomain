@@ -13,10 +13,13 @@ Copyright 2021 Ross Wightman
 import torch
 from torch.optim.optimizer import Optimizer
 
+from .factory import OptimizerFactory
 
+
+@OptimizerFactory.register('lars')
 class Lars(Optimizer):
     """ LARS for PyTorch
-    
+
     Paper: `Large batch training of Convolutional Networks` - https://arxiv.org/pdf/1708.03888.pdf
 
     Args:
@@ -52,7 +55,8 @@ class Lars(Optimizer):
         if weight_decay < 0.0:
             raise ValueError(f"Invalid weight_decay value: {weight_decay}")
         if nesterov and (momentum <= 0 or dampening != 0):
-            raise ValueError("Nesterov momentum requires a momentum and zero dampening")
+            raise ValueError(
+                "Nesterov momentum requires a momentum and zero dampening")
 
         defaults = dict(
             lr=lr,
@@ -85,7 +89,8 @@ class Lars(Optimizer):
                 loss = closure()
 
         device = self.param_groups[0]['params'][0].device
-        one_tensor = torch.tensor(1.0, device=device)  # because torch.where doesn't handle scalars correctly
+        # because torch.where doesn't handle scalars correctly
+        one_tensor = torch.tensor(1.0, device=device)
 
         for group in self.param_groups:
             weight_decay = group['weight_decay']
@@ -105,7 +110,8 @@ class Lars(Optimizer):
                 if weight_decay != 0 or group['always_adapt']:
                     w_norm = p.norm(2.0)
                     g_norm = grad.norm(2.0)
-                    trust_ratio = trust_coeff * w_norm / (g_norm + w_norm * weight_decay + eps)
+                    trust_ratio = trust_coeff * w_norm / \
+                        (g_norm + w_norm * weight_decay + eps)
                     # FIXME nested where required since logical and/or not working in PT XLA
                     trust_ratio = torch.where(
                         w_norm > 0,
@@ -113,7 +119,8 @@ class Lars(Optimizer):
                         one_tensor,
                     )
                     if group['trust_clip']:
-                        trust_ratio = torch.minimum(trust_ratio / group['lr'], one_tensor)
+                        trust_ratio = torch.minimum(
+                            trust_ratio / group['lr'], one_tensor)
                     grad.add_(p, alpha=weight_decay)
                     grad.mul_(trust_ratio)
 
@@ -121,7 +128,8 @@ class Lars(Optimizer):
                 if momentum != 0:
                     param_state = self.state[p]
                     if 'momentum_buffer' not in param_state:
-                        buf = param_state['momentum_buffer'] = torch.clone(grad).detach()
+                        buf = param_state['momentum_buffer'] = torch.clone(
+                            grad).detach()
                     else:
                         buf = param_state['momentum_buffer']
                         buf.mul_(momentum).add_(grad, alpha=1. - dampening)

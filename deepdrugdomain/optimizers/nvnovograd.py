@@ -8,8 +8,10 @@ Paper: `Stochastic Gradient Methods with Layer-wise Adaptive Moments for Trainin
 import torch
 from torch.optim.optimizer import Optimizer
 import math
+from .factory import OptimizerFactory
 
 
+@OptimizerFactory.register('nvnovograd')
 class NvNovoGrad(Optimizer):
     """
     Implements Novograd algorithm.
@@ -36,9 +38,11 @@ class NvNovoGrad(Optimizer):
         if not 0.0 <= eps:
             raise ValueError("Invalid epsilon value: {}".format(eps))
         if not 0.0 <= betas[0] < 1.0:
-            raise ValueError("Invalid beta parameter at index 0: {}".format(betas[0]))
+            raise ValueError(
+                "Invalid beta parameter at index 0: {}".format(betas[0]))
         if not 0.0 <= betas[1] < 1.0:
-            raise ValueError("Invalid beta parameter at index 1: {}".format(betas[1]))
+            raise ValueError(
+                "Invalid beta parameter at index 1: {}".format(betas[1]))
         defaults = dict(lr=lr, betas=betas, eps=eps,
                         weight_decay=weight_decay,
                         grad_averaging=grad_averaging,
@@ -81,10 +85,12 @@ class NvNovoGrad(Optimizer):
                     # Exponential moving average of gradient values
                     state['exp_avg'] = torch.zeros_like(p)
                     # Exponential moving average of squared gradient values
-                    state['exp_avg_sq'] = torch.zeros([]).to(state['exp_avg'].device)
+                    state['exp_avg_sq'] = torch.zeros(
+                        []).to(state['exp_avg'].device)
                     if amsgrad:
                         # Maintains max of all exp. moving avg. of sq. grad. values
-                        state['max_exp_avg_sq'] = torch.zeros([]).to(state['exp_avg'].device)
+                        state['max_exp_avg_sq'] = torch.zeros(
+                            []).to(state['exp_avg'].device)
 
                 exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
                 if amsgrad:

@@ -11,8 +11,10 @@ Original header/copyright below.
 # LICENSE file in the root directory of this source tree.
 import torch
 import math
+from .factory import OptimizerFactory
 
 
+@OptimizerFactory.register('adafactor')
 class Adafactor(torch.optim.Optimizer):
     """Implements Adafactor algorithm.
     This implementation is based on: `Adafactor: Adaptive Learning Rates with Sublinear Memory Cost`
@@ -44,7 +46,8 @@ class Adafactor(torch.optim.Optimizer):
         if warmup_init and not relative_step:
             raise ValueError('warmup_init requires relative_step=True')
 
-        beta1 = None if betas is None else betas[0]   # make it compat with standard betas arg
+        # make it compat with standard betas arg
+        beta1 = None if betas is None else betas[0]
         defaults = dict(lr=lr, eps=eps, eps_scale=eps_scale, clip_threshold=clip_threshold, decay_rate=decay_rate,
                         beta1=beta1, weight_decay=weight_decay, scale_parameter=scale_parameter,
                         relative_step=relative_step, warmup_init=warmup_init)
@@ -53,7 +56,8 @@ class Adafactor(torch.optim.Optimizer):
     @staticmethod
     def _get_lr(param_group, param_state):
         if param_group['relative_step']:
-            min_step = 1e-6 * param_state['step'] if param_group['warmup_init'] else 1e-2
+            min_step = 1e-6 * \
+                param_state['step'] if param_group['warmup_init'] else 1e-2
             lr_t = min(min_step, 1.0 / math.sqrt(param_state['step']))
             param_scale = 1.0
             if param_group['scale_parameter']:
@@ -72,7 +76,8 @@ class Adafactor(torch.optim.Optimizer):
         return tensor.norm(2) / (tensor.numel() ** 0.5)
 
     def _approx_sq_grad(self, exp_avg_sq_row, exp_avg_sq_col):
-        r_factor = (exp_avg_sq_row / exp_avg_sq_row.mean(dim=-1, keepdim=True)).rsqrt_().unsqueeze(-1)
+        r_factor = (exp_avg_sq_row / exp_avg_sq_row.mean(dim=-
+                    1, keepdim=True)).rsqrt_().unsqueeze(-1)
         c_factor = exp_avg_sq_col.unsqueeze(-2).rsqrt()
         return torch.mul(r_factor, c_factor)
 
@@ -95,11 +100,13 @@ class Adafactor(torch.optim.Optimizer):
                 if grad.dtype in {torch.float16, torch.bfloat16}:
                     grad = grad.float()
                 if grad.is_sparse:
-                    raise RuntimeError('Adafactor does not support sparse gradients.')
+                    raise RuntimeError(
+                        'Adafactor does not support sparse gradients.')
 
                 state = self.state[p]
 
-                factored, use_first_moment = self._get_options(group, grad.shape)
+                factored, use_first_moment = self._get_options(
+                    group, grad.shape)
                 # State Initialization
                 if len(state) == 0:
                     state['step'] = 0
@@ -108,8 +115,10 @@ class Adafactor(torch.optim.Optimizer):
                         # Exponential moving average of gradient values
                         state['exp_avg'] = torch.zeros_like(grad)
                     if factored:
-                        state['exp_avg_sq_row'] = torch.zeros(grad.shape[:-1]).to(grad)
-                        state['exp_avg_sq_col'] = torch.zeros(grad.shape[:-2] + grad.shape[-1:]).to(grad)
+                        state['exp_avg_sq_row'] = torch.zeros(
+                            grad.shape[:-1]).to(grad)
+                        state['exp_avg_sq_col'] = torch.zeros(
+                            grad.shape[:-2] + grad.shape[-1:]).to(grad)
                     else:
                         state['exp_avg_sq'] = torch.zeros_like(grad)
 
@@ -118,8 +127,10 @@ class Adafactor(torch.optim.Optimizer):
                     if use_first_moment:
                         state['exp_avg'] = state['exp_avg'].to(grad)
                     if factored:
-                        state['exp_avg_sq_row'] = state['exp_avg_sq_row'].to(grad)
-                        state['exp_avg_sq_col'] = state['exp_avg_sq_col'].to(grad)
+                        state['exp_avg_sq_row'] = state['exp_avg_sq_row'].to(
+                            grad)
+                        state['exp_avg_sq_col'] = state['exp_avg_sq_col'].to(
+                            grad)
                     else:
                         state['exp_avg_sq'] = state['exp_avg_sq'].to(grad)
 
@@ -137,11 +148,14 @@ class Adafactor(torch.optim.Optimizer):
                     exp_avg_sq_row = state['exp_avg_sq_row']
                     exp_avg_sq_col = state['exp_avg_sq_col']
 
-                    exp_avg_sq_row.mul_(beta2t).add_(update.mean(dim=-1), alpha=1.0 - beta2t)
-                    exp_avg_sq_col.mul_(beta2t).add_(update.mean(dim=-2), alpha=1.0 - beta2t)
+                    exp_avg_sq_row.mul_(beta2t).add_(
+                        update.mean(dim=-1), alpha=1.0 - beta2t)
+                    exp_avg_sq_col.mul_(beta2t).add_(
+                        update.mean(dim=-2), alpha=1.0 - beta2t)
 
                     # Approximation of exponential moving average of square of gradient
-                    update = self._approx_sq_grad(exp_avg_sq_row, exp_avg_sq_col)
+                    update = self._approx_sq_grad(
+                        exp_avg_sq_row, exp_avg_sq_col)
                     update.mul_(grad)
                 else:
                     exp_avg_sq = state['exp_avg_sq']
@@ -149,12 +163,14 @@ class Adafactor(torch.optim.Optimizer):
                     exp_avg_sq.mul_(beta2t).add_(update, alpha=1.0 - beta2t)
                     update = exp_avg_sq.rsqrt().mul_(grad)
 
-                update.div_((self._rms(update) / group['clip_threshold']).clamp_(min=1.0))
+                update.div_(
+                    (self._rms(update) / group['clip_threshold']).clamp_(min=1.0))
                 update.mul_(lr_t)
 
                 if use_first_moment:
                     exp_avg = state['exp_avg']
-                    exp_avg.mul_(group['beta1']).add_(update, alpha=1 - group['beta1'])
+                    exp_avg.mul_(group['beta1']).add_(
+                        update, alpha=1 - group['beta1'])
                     update = exp_avg
 
                 if group['weight_decay'] != 0:

@@ -12,7 +12,10 @@ import torch
 
 from torch.optim import Optimizer
 
+from .factory import OptimizerFactory
 
+
+@OptimizerFactory.register('adan')
 class Adan(Optimizer):
     """
     Implements a pytorch variant of Adan
@@ -44,12 +47,16 @@ class Adan(Optimizer):
         if not 0.0 <= eps:
             raise ValueError("Invalid epsilon value: {}".format(eps))
         if not 0.0 <= betas[0] < 1.0:
-            raise ValueError("Invalid beta parameter at index 0: {}".format(betas[0]))
+            raise ValueError(
+                "Invalid beta parameter at index 0: {}".format(betas[0]))
         if not 0.0 <= betas[1] < 1.0:
-            raise ValueError("Invalid beta parameter at index 1: {}".format(betas[1]))
+            raise ValueError(
+                "Invalid beta parameter at index 1: {}".format(betas[1]))
         if not 0.0 <= betas[2] < 1.0:
-            raise ValueError("Invalid beta parameter at index 2: {}".format(betas[2]))
-        defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, no_prox=no_prox)
+            raise ValueError(
+                "Invalid beta parameter at index 2: {}".format(betas[2]))
+        defaults = dict(lr=lr, betas=betas, eps=eps,
+                        weight_decay=weight_decay, no_prox=no_prox)
         super(Adan, self).__init__(params, defaults)
 
     @torch.no_grad()
@@ -108,10 +115,13 @@ class Adan(Optimizer):
                 exp_avg.lerp_(grad, 1. - beta1)  # m_t
                 exp_avg_diff.lerp_(grad_diff, 1. - beta2)  # diff_t (v)
                 update = grad + beta2 * grad_diff
-                exp_avg_sq.mul_(beta3).addcmul_(update, update, value=1. - beta3)  # n_t
+                exp_avg_sq.mul_(beta3).addcmul_(
+                    update, update, value=1. - beta3)  # n_t
 
-                denom = (exp_avg_sq.sqrt() / math.sqrt(bias_correction3)).add_(group['eps'])
-                update = (exp_avg / bias_correction1 + beta2 * exp_avg_diff / bias_correction2).div_(denom)
+                denom = (exp_avg_sq.sqrt() /
+                         math.sqrt(bias_correction3)).add_(group['eps'])
+                update = (exp_avg / bias_correction1 + beta2 *
+                          exp_avg_diff / bias_correction2).div_(denom)
                 if group['no_prox']:
                     p.data.mul_(1 - group['lr'] * group['weight_decay'])
                     p.add_(update, alpha=-group['lr'])

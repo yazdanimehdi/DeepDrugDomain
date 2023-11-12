@@ -21,7 +21,10 @@ from typing import List
 import torch
 from torch.optim.optimizer import Optimizer
 
+from .factory import OptimizerFactory
 
+
+@OptimizerFactory.register('lion')
 class Lion(Optimizer):
     r"""Implements Lion algorithm."""
 
@@ -48,9 +51,11 @@ class Lion(Optimizer):
         if not 0.0 <= lr:
             raise ValueError('Invalid learning rate: {}'.format(lr))
         if not 0.0 <= betas[0] < 1.0:
-            raise ValueError('Invalid beta parameter at index 0: {}'.format(betas[0]))
+            raise ValueError(
+                'Invalid beta parameter at index 0: {}'.format(betas[0]))
         if not 0.0 <= betas[1] < 1.0:
-            raise ValueError('Invalid beta parameter at index 1: {}'.format(betas[1]))
+            raise ValueError(
+                'Invalid beta parameter at index 1: {}'.format(betas[1]))
         defaults = dict(
             lr=lr,
             betas=betas,
@@ -93,14 +98,16 @@ class Lion(Optimizer):
                     continue
                 params_with_grad.append(p)
                 if p.grad.is_sparse:
-                    raise RuntimeError('Lion does not support sparse gradients')
+                    raise RuntimeError(
+                        'Lion does not support sparse gradients')
                 grads.append(p.grad)
 
                 state = self.state[p]
 
                 # State initialization
                 if len(state) == 0:
-                    state['exp_avg'] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                    state['exp_avg'] = torch.zeros_like(
+                        p, memory_format=torch.preserve_format)
 
                 exp_avgs.append(state['exp_avg'])
 
@@ -140,7 +147,8 @@ def lion(
         foreach = False
 
     if foreach and torch.jit.is_scripting():
-        raise RuntimeError('torch.jit.script not supported with foreach optimizers')
+        raise RuntimeError(
+            'torch.jit.script not supported with foreach optimizers')
 
     if foreach and not torch.jit.is_scripting():
         func = _multi_tensor_lion
@@ -207,9 +215,12 @@ def _multi_tensor_lion(
     if maximize:
         grads = torch._foreach_neg(tuple(grads))  # type: ignore[assignment]
 
-    grads = [torch.view_as_real(x) if torch.is_complex(x) else x for x in grads]
-    exp_avgs = [torch.view_as_real(x) if torch.is_complex(x) else x for x in exp_avgs]
-    params = [torch.view_as_real(x) if torch.is_complex(x) else x for x in params]
+    grads = [torch.view_as_real(x) if torch.is_complex(
+        x) else x for x in grads]
+    exp_avgs = [torch.view_as_real(x) if torch.is_complex(
+        x) else x for x in exp_avgs]
+    params = [torch.view_as_real(x) if torch.is_complex(
+        x) else x for x in params]
 
     # Perform stepweight decay
     torch._foreach_mul_(params, 1 - lr * weight_decay)

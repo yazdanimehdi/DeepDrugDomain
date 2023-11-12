@@ -9,8 +9,10 @@ Modifications Copyright 2021 Ross Wightman
 
 import torch
 from torch.optim import Optimizer
+from .factory import OptimizerFactory
 
 
+@OptimizerFactory.register('rmsprop_tf')
 class RMSpropTF(Optimizer):
     """Implements RMSprop algorithm (TensorFlow style epsilon)
 
@@ -54,7 +56,8 @@ class RMSpropTF(Optimizer):
         if not 0.0 <= momentum:
             raise ValueError("Invalid momentum value: {}".format(momentum))
         if not 0.0 <= weight_decay:
-            raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
+            raise ValueError(
+                "Invalid weight_decay value: {}".format(weight_decay))
         if not 0.0 <= alpha:
             raise ValueError("Invalid alpha value: {}".format(alpha))
 
@@ -88,13 +91,15 @@ class RMSpropTF(Optimizer):
                     continue
                 grad = p.grad
                 if grad.is_sparse:
-                    raise RuntimeError('RMSprop does not support sparse gradients')
+                    raise RuntimeError(
+                        'RMSprop does not support sparse gradients')
                 state = self.state[p]
 
                 # State initialization
                 if len(state) == 0:
                     state['step'] = 0
-                    state['square_avg'] = torch.ones_like(p)  # PyTorch inits to zero
+                    state['square_avg'] = torch.ones_like(
+                        p)  # PyTorch inits to zero
                     if group['momentum'] > 0:
                         state['momentum_buffer'] = torch.zeros_like(p)
                     if group['centered']:
@@ -112,22 +117,26 @@ class RMSpropTF(Optimizer):
                         grad = grad.add(p, alpha=group['weight_decay'])
 
                 # Tensorflow order of ops for updating squared avg
-                square_avg.add_(grad.pow(2) - square_avg, alpha=one_minus_alpha)
+                square_avg.add_(grad.pow(2) - square_avg,
+                                alpha=one_minus_alpha)
                 # square_avg.mul_(alpha).addcmul_(grad, grad, value=1 - alpha)  # PyTorch original
 
                 if group['centered']:
                     grad_avg = state['grad_avg']
                     grad_avg.add_(grad - grad_avg, alpha=one_minus_alpha)
-                    avg = square_avg.addcmul(grad_avg, grad_avg, value=-1).add(group['eps']).sqrt_()  # eps in sqrt
+                    avg = square_avg.addcmul(
+                        grad_avg, grad_avg, value=-1).add(group['eps']).sqrt_()  # eps in sqrt
                     # grad_avg.mul_(alpha).add_(grad, alpha=1 - alpha)  # PyTorch original
                 else:
-                    avg = square_avg.add(group['eps']).sqrt_()  # eps moved in sqrt
+                    # eps moved in sqrt
+                    avg = square_avg.add(group['eps']).sqrt_()
 
                 if group['momentum'] > 0:
                     buf = state['momentum_buffer']
                     # Tensorflow accumulates the LR scaling in the momentum buffer
                     if group['lr_in_momentum']:
-                        buf.mul_(group['momentum']).addcdiv_(grad, avg, value=group['lr'])
+                        buf.mul_(group['momentum']).addcdiv_(
+                            grad, avg, value=group['lr'])
                         p.add_(-buf)
                     else:
                         # PyTorch scales the param update by LR

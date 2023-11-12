@@ -14,8 +14,10 @@ from torch.optim.optimizer import Optimizer, required
 import math
 
 from .adamp import projection
+from .factory import OptimizerFactory
 
 
+@OptimizerFactory.register('sgdp')
 class SGDP(Optimizer):
     def __init__(self, params, lr=required, momentum=0, dampening=0,
                  weight_decay=0, nesterov=False, eps=1e-8, delta=0.1, wd_ratio=0.1):
@@ -58,11 +60,13 @@ class SGDP(Optimizer):
                 # Projection
                 wd_ratio = 1.
                 if len(p.shape) > 1:
-                    d_p, wd_ratio = projection(p, grad, d_p, group['delta'], group['wd_ratio'], group['eps'])
+                    d_p, wd_ratio = projection(
+                        p, grad, d_p, group['delta'], group['wd_ratio'], group['eps'])
 
                 # Weight decay
                 if weight_decay != 0:
-                    p.mul_(1. - group['lr'] * group['weight_decay'] * wd_ratio / (1-momentum))
+                    p.mul_(1. - group['lr'] * group['weight_decay']
+                           * wd_ratio / (1-momentum))
 
                 # Step
                 p.add_(d_p, alpha=-group['lr'])

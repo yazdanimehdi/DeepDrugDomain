@@ -11,7 +11,10 @@ import torch
 from torch.optim.optimizer import Optimizer
 from collections import defaultdict
 
+from .factory import OptimizerFactory
 
+
+@OptimizerFactory.register('lookahead')
 class Lookahead(Optimizer):
     def __init__(self, base_optimizer, alpha=0.5, k=6):
         # NOTE super().__init__() not called on purpose

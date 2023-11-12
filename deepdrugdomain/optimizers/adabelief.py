@@ -1,8 +1,10 @@
 import math
 import torch
 from torch.optim.optimizer import Optimizer
+from .factory import OptimizerFactory
 
 
+@OptimizerFactory.register('adabelief')
 class AdaBelief(Optimizer):
     r"""Implements AdaBelief algorithm. Modified from Adam in PyTorch
 
@@ -48,9 +50,11 @@ class AdaBelief(Optimizer):
         if not 0.0 <= eps:
             raise ValueError("Invalid epsilon value: {}".format(eps))
         if not 0.0 <= betas[0] < 1.0:
-            raise ValueError("Invalid beta parameter at index 0: {}".format(betas[0]))
+            raise ValueError(
+                "Invalid beta parameter at index 0: {}".format(betas[0]))
         if not 0.0 <= betas[1] < 1.0:
-            raise ValueError("Invalid beta parameter at index 1: {}".format(betas[1]))
+            raise ValueError(
+                "Invalid beta parameter at index 1: {}".format(betas[1]))
 
         if isinstance(params, (list, tuple)) and len(params) > 0 and isinstance(params[0], dict):
             for param in params:
@@ -126,7 +130,7 @@ class AdaBelief(Optimizer):
                     if amsgrad:
                         # Maintains max of all exp. moving avg. of sq. grad. values
                         state['max_exp_avg_var'] = torch.zeros_like(p_fp32)
-                
+
                 # perform weight decay, check if decoupled weight decay
                 if group['decoupled_decay']:
                     if not group['fixed_decay']:
@@ -147,18 +151,22 @@ class AdaBelief(Optimizer):
                 # Update first and second moment running average
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
                 grad_residual = grad - exp_avg
-                exp_avg_var.mul_(beta2).addcmul_(grad_residual, grad_residual, value=1 - beta2)
+                exp_avg_var.mul_(beta2).addcmul_(
+                    grad_residual, grad_residual, value=1 - beta2)
 
                 if amsgrad:
                     max_exp_avg_var = state['max_exp_avg_var']
                     # Maintains the maximum of all 2nd moment running avg. till now
-                    torch.max(max_exp_avg_var, exp_avg_var.add_(group['eps']), out=max_exp_avg_var)
+                    torch.max(max_exp_avg_var, exp_avg_var.add_(
+                        group['eps']), out=max_exp_avg_var)
 
                     # Use the max. for normalizing running avg. of gradient
-                    denom = (max_exp_avg_var.sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
+                    denom = (max_exp_avg_var.sqrt() /
+                             math.sqrt(bias_correction2)).add_(group['eps'])
                 else:
-                    denom = (exp_avg_var.add_(group['eps']).sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
-                
+                    denom = (exp_avg_var.add_(group['eps']).sqrt(
+                    ) / math.sqrt(bias_correction2)).add_(group['eps'])
+
                 # update
                 if not group['rectify']:
                     # Default update
@@ -173,7 +181,8 @@ class AdaBelief(Optimizer):
                         buffered[0] = state['step']
                         beta2_t = beta2 ** state['step']
                         num_sma_max = 2 / (1 - beta2) - 1
-                        num_sma = num_sma_max - 2 * state['step'] * beta2_t / (1 - beta2_t)
+                        num_sma = num_sma_max - 2 * \
+                            state['step'] * beta2_t / (1 - beta2_t)
                         buffered[1] = num_sma
 
                         # more conservative since it's an approximated value
@@ -191,10 +200,11 @@ class AdaBelief(Optimizer):
 
                     if num_sma >= 5:
                         denom = exp_avg_var.sqrt().add_(group['eps'])
-                        p_fp32.addcdiv_(exp_avg, denom, value=-step_size * group['lr'])
+                        p_fp32.addcdiv_(exp_avg, denom, value=-
+                                        step_size * group['lr'])
                     elif step_size > 0:
                         p_fp32.add_(exp_avg, alpha=-step_size * group['lr'])
-                
+
                 if p.dtype in {torch.float16, torch.bfloat16}:
                     p.copy_(p_fp32)
 
