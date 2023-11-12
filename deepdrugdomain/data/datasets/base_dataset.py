@@ -184,9 +184,17 @@ class CustomDataset(AbstractDataset):
             raise ValueError("Error: Model not found")
 
         config_path = os.path.join('configs', f'{associated_model}.json')
-        with open(config_path, 'r') as config_file:
-            model_configs = json.load(config_file)
-            dataset_config = model_configs.get('dataset', {})
+        assert os.path.exists(config_path), "Model config file not found"
+
+        try:
+            with open(config_path, 'r') as config_file:
+                model_configs = json.load(config_file)
+                dataset_config = model_configs.get('dataset', {})
+
+            dataset_config = dataset_config[self.__class__.__name__]
+        except KeyError:
+            raise ValueError(
+                f"Error: Model config file does not contain a dataset configuration for {self.__class__.__name__}")
 
         self.drug_preprocess_type = drug_preprocess_type or dataset_config.get(
             'drug_preprocess_type')
@@ -283,7 +291,7 @@ class CustomDataset(AbstractDataset):
         """
         return pd.read_csv(file_path, sep=separator)
 
-    def __call__(self, random_split: Optional[List[int]] = None) -> Dataset:
+    def __call__(self, random_split: Optional[List[int]] = None, return_df: Optional[bool] = False) -> Union[Dataset, pd.DataFrame]:
         """
             When called, the method creates a DrugProteinDataset from the loaded data and optionally splits it into training, 
             validation, and test datasets based on the provided proportions in 'random_split'.
@@ -296,6 +304,10 @@ class CustomDataset(AbstractDataset):
                 Union[Dataset, Tuple[Dataset, ...]]: The complete dataset or a tuple containing split datasets.
         """
         df = self.load()
+
+        if return_df:
+            return df
+
         dataset = DrugProteinDataset(df,
                                      self.drug_preprocess_type, self.drug_attributes, self.online_preprocessing_drug, self.in_memory_preprocessing_drug,
                                      self.protein_preprocess_type, self.protein_attributes, self.online_preprocessing_protein, self.in_memory_preprocessing_protein,
