@@ -19,7 +19,7 @@ Example Usage:
 import torch
 from typing import List, Tuple, Any
 from ..base_collate import BaseCollate
-from ..collate_factory import CollateFactory
+from ..factory import CollateFactory
 
 
 @CollateFactory.register("binding_graph_smile_graph")

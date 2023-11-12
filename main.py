@@ -18,11 +18,6 @@ from tqdm import tqdm
 import deepdrugdomain as ddd
 
 
-dataset = ddd.datasets.celegans(model="attentionsitedti")
-model = ddd.models.attentionsitedti()
-ddd.train(dataset, model)
-
-
 def get_args_parser():
     parser = argparse.ArgumentParser(
         'DTIA training and evaluation script', add_help=False)
@@ -67,35 +62,35 @@ def main(args):
     seed = args.seed
     torch.manual_seed(seed)
     np.random.seed(seed)
-    dataset = CustomDataset(
-        file_paths=["data/drugbank/DrugBank.txt",
-                    "data/drugbank/drugbankSeqPdb.txt"],
-        common_columns={"sequence": "TargetSequence"},
-        separators=[" ", ","],
-        drug_preprocess_type=("dgl_graph_from_smile",
-                              {"fragment": False, "max_block": 6, "max_sr": 8, "min_frag_atom": 1}),
-        drug_attributes="SMILE",
-        online_preprocessing_drug=False,
-        in_memory_preprocessing_drug=True,
-        protein_preprocess_type=(
-            "dgl_graph_from_protein_pocket", {"pdb_path": "data/pdb/", "protein_size_limit": 10000}),
-        protein_attributes="pdb_id",
-        online_preprocessing_protein=False,
-        in_memory_preprocessing_protein=False,
-        label_attributes="Label",
-        save_directory="data/drugbank/",
-        threads=8
-    )
-    dataset_train, dataset_val, dataset_test = dataset([0.8, 0.1, 0.1])
+    # dataset = CustomDataset(
+    #     file_paths=["data/drugbank/DrugBank.txt",
+    #                 "data/drugbank/drugbankSeqPdb.txt"],
+    #     common_columns={"sequence": "TargetSequence"},
+    #     separators=[" ", ","],
+    #     drug_preprocess_type=("dgl_graph_from_smile",
+    #                           {"fragment": False, "max_block": 6, "max_sr": 8, "min_frag_atom": 1}),
+    #     drug_attributes="SMILE",
+    #     online_preprocessing_drug=False,
+    #     in_memory_preprocessing_drug=True,
+    #     protein_preprocess_type=(
+    #         "dgl_graph_from_protein_pocket", {"pdb_path": "data/pdb/", "protein_size_limit": 10000}),
+    #     protein_attributes="pdb_id",
+    #     online_preprocessing_protein=False,
+    #     in_memory_preprocessing_protein=False,
+    #     label_attributes="Label",
+    #     save_directory="data/drugbank/",
+    #     threads=8
+    # )
+    model, datasets, collate_fn = ddd.utils.initialize_training_environment(
+        "attentionsitedti", "drugbank", [0.8, 0.1, 0.1])
     collate_fn = CollateFactory.create("binding_graph_smile_graph")
-    data_loader_train = DataLoader(dataset_train, batch_size=32, shuffle=True, num_workers=4, pin_memory=True,
+    data_loader_train = DataLoader(datasets[0], batch_size=32, shuffle=True, num_workers=4, pin_memory=True,
                                    collate_fn=collate_fn, drop_last=True)
 
-    data_loader_val = DataLoader(dataset_val, drop_last=False, batch_size=32,
+    data_loader_val = DataLoader(datasets[1], drop_last=False, batch_size=32,
                                  num_workers=4, pin_memory=False, collate_fn=collate_fn)
-    data_loader_test = DataLoader(dataset_test, drop_last=False, batch_size=32, collate_fn=collate_fn,
+    data_loader_test = DataLoader(datasets[2], drop_last=False, batch_size=32, collate_fn=collate_fn,
                                   num_workers=4, pin_memory=False)
-    model = ModelFactory.create("AMMVF")
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=1e-4, weight_decay=0.03)
     criterion = torch.nn.BCELoss()
