@@ -31,11 +31,11 @@ We welcome contributions to DeepDrugDomain! Please read our Contribution Guideli
 If you use DeepDrugDomain in your research, please cite:
 
 ```bibtex
-@article{deepdrugdomain2023,
-  title={DeepDrugDomain: A Toolkit for Accelerating Drug-Target Interaction Prediction},
+@article{deepdrugdomain2024,
+  title={From Data to Discovery: The DeepDrugDomain Framework for Predicting Drug-Target Interactions and Affinity},
   author={...},
   journal={...},
-  year={2023}
+  year={2024}
 }
 
 ```
