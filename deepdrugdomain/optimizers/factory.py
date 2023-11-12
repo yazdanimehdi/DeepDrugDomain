@@ -68,7 +68,7 @@ class OptimizerFactory(BaseFactory):
         return decorator
 
     @classmethod
-    def create(cls, key: str, *args, **kwargs) -> Type[T]:
+    def create(cls, key: str, params, *args, **kwargs) -> Type[T]:
         """
         A method for creating optimizer instances based on a key.
 
@@ -83,5 +83,5 @@ class OptimizerFactory(BaseFactory):
         if key not in cls._registry:
             raise ValueError(f"Key '{key}' not registered.")
 
-        optimizer_instance = cls._registry[key](*args, **kwargs)
+        optimizer_instance = cls._registry[key](params, *args, **kwargs)
         return optimizer_instance

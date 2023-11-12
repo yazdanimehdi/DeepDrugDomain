@@ -1,8 +1,8 @@
 {
     "model": {
         "default": {
-            "protein_graph_conv_layer": "dgl_tag",
-            "ligand_graph_conv_layer": "dgl_tag",
+            "protein_graph_conv_layer": ["dgl_tag", "dgl_tag"],
+            "ligand_graph_conv_layer": ["dgl_tag", "dgl_tag", "dgl_tag"],
             "protein_input_size": 74,
             "ligand_input_size": 74,
             "protein_graph_conv_dims": [

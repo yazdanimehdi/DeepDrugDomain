@@ -7,7 +7,8 @@ import torch
 from sklearn.metrics import roc_auc_score, average_precision_score, f1_score, precision_score, recall_score, \
     balanced_accuracy_score
 from torch.optim.lr_scheduler import ExponentialLR
-
+from deepdrugdomain.optimizers.factory import OptimizerFactory
+from deepdrugdomain.schedulers.factory import SchedulerFactory
 from deepdrugdomain.data import CustomDataset
 from deepdrugdomain.data.collate import CollateFactory
 from torch.utils.data import DataLoader
@@ -81,22 +82,24 @@ def main(args):
     #     save_directory="data/drugbank/",
     #     threads=8
     # )
-    model, datasets, collate_fn = ddd.utils.initialize_training_environment(
-        "attentionsitedti", "drugbank", [0.8, 0.1, 0.1])
-    collate_fn = CollateFactory.create("binding_graph_smile_graph")
-    data_loader_train = DataLoader(datasets[0], batch_size=32, shuffle=True, num_workers=4, pin_memory=True,
-                                   collate_fn=collate_fn, drop_last=True)
+    # model, datasets, collate_fn = ddd.utils.initialize_training_environment(
+    #     "attentionsitedti", "drugbank", [0.8, 0.1, 0.1])
+    # collate_fn = CollateFactory.create("binding_graph_smile_graph")
+    # data_loader_train = DataLoader(datasets[0], batch_size=32, shuffle=True, num_workers=4, pin_memory=True,
+    #                                collate_fn=collate_fn, drop_last=True)
 
-    data_loader_val = DataLoader(datasets[1], drop_last=False, batch_size=32,
-                                 num_workers=4, pin_memory=False, collate_fn=collate_fn)
-    data_loader_test = DataLoader(datasets[2], drop_last=False, batch_size=32, collate_fn=collate_fn,
-                                  num_workers=4, pin_memory=False)
-    optimizer = torch.optim.AdamW(
-        model.parameters(), lr=1e-4, weight_decay=0.03)
+    # data_loader_val = DataLoader(datasets[1], drop_last=False, batch_size=32,
+    #                              num_workers=4, pin_memory=False, collate_fn=collate_fn)
+    # data_loader_test = DataLoader(datasets[2], drop_last=False, batch_size=32, collate_fn=collate_fn,
+    #                               num_workers=4, pin_memory=False)
+    model = ModelFactory.create("attentionsitedti")
     criterion = torch.nn.BCELoss()
-    scheduler = ExponentialLR(optimizer, gamma=0.98)
+    optimizer = OptimizerFactory.create(
+        "adamw", model.parameters(), lr=1e-4, weight_decay=0.03)
+    scheduler = SchedulerFactory.create("cosine", optimizer)
     device = torch.device("cpu")
     model.to(device)
+
     epochs = 200
 #     accum_iter = 2
 #     for epoch in range(epochs):
