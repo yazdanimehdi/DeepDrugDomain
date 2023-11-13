@@ -1,0 +1,121 @@
+{
+    "model": {
+        "protein_graph_conv_layer": [
+            "dgl_tag",
+            "dgl_tag",
+            "dgl_gat"
+        ],
+        "ligand_graph_conv_layer": [
+            "dgl_tag",
+            "dgl_tag",
+            "dgl_gat"
+        ],
+        "protein_input_size": 74,
+        "ligand_input_size": 74,
+        "protein_graph_conv_dims": [
+            74,
+            128,
+            256
+        ],
+        "ligand_graph_conv_dims": [
+            74,
+            128,
+            256
+        ],
+        "protein_conv_dropout_rate": [
+            0.05,
+            0.05,
+            0.05
+        ],
+        "protein_conv_normalization": [
+            false,
+            false,
+            false
+        ],
+        "ligand_conv_dropout_rate": [
+            0.05,
+            0.05,
+            0.05
+        ],
+        "ligand_conv_normalization": [
+            false,
+            false,
+            false
+        ],
+        "head_dropout_rate": 0.05,
+        "head_activation_fn": [
+            "relu"
+        ],
+        "head_normalization": [
+            "layer_norm"
+        ],
+        "protein_graph_conv_kwargs": [
+            {
+                "k": 4
+            },
+            {
+                "k": 4
+            },
+            {
+                "num_heads": 2
+            }
+        ],
+        "ligand_graph_conv_kwargs": [
+            {
+                "k": 4
+            },
+            {
+                "k": 4
+            },
+            {
+                "num_heads": 2
+            }
+        ],
+        "ligand_graph_pooling_kwargs": {},
+        "protein_graph_pooling_kwargs": {},
+        "embedding_dim": 256,
+        "ligand_graph_pooling": "dgl_maxpool",
+        "protein_graph_pooling": "dgl_maxpool",
+        "self_attention_depth": 2,
+        "self_attention_num_heads": 4.0,
+        "self_attention_mlp_ratio": 4.0,
+        "self_attention_qkv_bias": true,
+        "self_attention_qk_scale": null,
+        "self_attention_drop_rate": 0.3,
+        "self_attn_drop_rate": 0.0,
+        "self_drop_path_rate": 0.3,
+        "self_norm_layer": "layer_norm",
+        "input_norm_layer": "layer_norm",
+        "output_norm_layer": "layer_norm",
+        "block_layers": "transformer_block",
+        "input_block_layers": "transformer_cross_attention_block",
+        "output_block_layers": "transformer_cross_attention_block",
+        "self_act_layer": "gelu",
+        "input_act_layer": "gelu",
+        "output_act_layer": "gelu",
+        "attention_block": "transformer_attention",
+        "self_mlp_block": "transformer_mlp",
+        "input_mlp_block": "transformer_mlp",
+        "output_mlp_block": "transformer_mlp",
+        "input_cross_att_block": "transformer_cross_attention",
+        "output_cross_att_block": "transformer_cross_attention",
+        "input_cross_attention_num_heads": 4.0,
+        "input_cross_attention_mlp_ratio": 4.0,
+        "input_cross_attention_qkv_bias": true,
+        "input_cross_attention_qk_scale": null,
+        "input_cross_attention_drop_rate": 0.3,
+        "input_cross_attn_drop_rate": 0.0,
+        "input_cross_drop_path_rate": 0.3,
+        "output_cross_attention_num_heads": 4.0,
+        "output_cross_attention_mlp_ratio": 4.0,
+        "output_cross_attention_qkv_bias": true,
+        "output_cross_attention_qk_scale": null,
+        "output_cross_attention_drop_rate": 0.3,
+        "output_cross_attn_drop_rate": 0.0,
+        "output_cross_drop_path_rate": 0.3,
+        "input_stages": 2,
+        "output_stages": 2,
+        "latent_space": 200,
+        "head_dims": [1]
+    }
+}

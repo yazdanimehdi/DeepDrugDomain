@@ -33,48 +33,47 @@ class FragXSiteDTI(nn.Module):
                  embedding_dim: int,
                  ligand_graph_pooling: str,
                  protein_graph_pooling: str,
-                 self_attention_depth=2,
-                 self_attention_num_heads=4,
-                 self_attention_mlp_ratio=4.,
-                 self_attention_qkv_bias=True,
-                 self_attention_qk_scale=None,
-                 self_attention_drop_rate=0.3,
-                 self_attn_drop_rate=0.,
-                 self_drop_path_rate=0.3,
-                 self_norm_layer="layer_norm",
-                 input_norm_layer="layer_norm",
-                 output_norm_layer="layer_norm",
-                 block_layers="transformer_block",
-                 input_block_layers="transformer_cross_attention_block",
-                 output_block_layers="transformer_cross_attention_block",
-                 self_act_layer="gelu",
-                 input_act_layer="gelu",
-                 output_act_layer="gelu",
-                 attention_block="transformer_attention",
-                 self_mlp_block="transformer_mlp",
-                 input_mlp_block="transformer_mlp",
-                 output_mlp_block="transformer_mlp",
-                 input_cross_att_block="transformer_cross_attention",
-                 output_cross_att_block="transformer_cross_attention",
-                 input_cross_attention_num_heads=4,
-                 input_cross_attention_mlp_ratio=4.,
-                 input_cross_attention_qkv_bias=True,
-                 input_cross_attention_qk_scale=None,
-                 input_cross_attention_drop_rate=0.3,
-                 input_cross_attn_drop_rate=0.,
-                 input_cross_drop_path_rate=0.3,
-                 output_cross_attention_num_heads=4,
-                 output_cross_attention_mlp_ratio=4.,
-                 output_cross_attention_qkv_bias=True,
-                 output_cross_attention_qk_scale=None,
-                 output_cross_attention_drop_rate=0.3,
-                 output_cross_attn_drop_rate=0.,
-                 output_cross_drop_path_rate=0.3,
-                 input_stages=2,
-                 output_stages=2,
-                 latent_space=200,
-                 head_dims=[],
-                 **kwargs):
+                 self_attention_depth: str,
+                 self_attention_num_heads: str,
+                 self_attention_mlp_ratio: str,
+                 self_attention_qkv_bias: bool,
+                 self_attention_qk_scale: Optional[float],
+                 self_attention_drop_rate: float,
+                 self_attn_drop_rate: float,
+                 self_drop_path_rate: float,
+                 self_norm_layer: str,
+                 input_norm_layer: str,
+                 output_norm_layer: str,
+                 block_layers: str,
+                 input_block_layers: str,
+                 output_block_layers: str,
+                 self_act_layer: str,
+                 input_act_layer: str,
+                 output_act_layer: str,
+                 attention_block: str,
+                 self_mlp_block: str,
+                 input_mlp_block: str,
+                 output_mlp_block: str,
+                 input_cross_att_block: str,
+                 output_cross_att_block: str,
+                 input_cross_attention_num_heads: int,
+                 input_cross_attention_mlp_ratio: float,
+                 input_cross_attention_qkv_bias: bool,
+                 input_cross_attention_qk_scale: Optional[float],
+                 input_cross_attention_drop_rate: float,
+                 input_cross_attn_drop_rate: float,
+                 input_cross_drop_path_rate: float,
+                 output_cross_attention_num_heads: int,
+                 output_cross_attention_mlp_ratio: float,
+                 output_cross_attention_qkv_bias: bool,
+                 output_cross_attention_qk_scale: Optional[float],
+                 output_cross_attention_drop_rate: float,
+                 output_cross_attn_drop_rate: float,
+                 output_cross_drop_path_rate: float,
+                 input_stages: int,
+                 output_stages: int,
+                 latent_space: int,
+                 head_dims: Sequence[int]):
         super().__init__()
         self.embedding_dim = embedding_dim
 
@@ -145,13 +144,12 @@ class FragXSiteDTI(nn.Module):
         # Prediction layer
         self.head = nn.ModuleList()
         neuron_list = [self.embedding_dim] + list(head_dims)
-        for item in range(len(neuron_list) - 2):
-            self.fc.append(nn.Linear(neuron_list[item], neuron_list[item + 1]))
-
-        self.fc_out = nn.Linear(neuron_list[-2], neuron_list[-1])
-
-        self.activation = ActivationFactory.create(
-            head_activation_fn) if head_activation_fn else nn.Identity()
+        for item in range(len(neuron_list) - 1):
+            self.head.append(nn.Dropout(head_dropout_rate))
+            self.head.append(
+                nn.Linear(neuron_list[item], neuron_list[item + 1]))
+            self.head.append(ActivationFactory.create(
+                head_activation_fn) if head_activation_fn else nn.Identity())
 
         trunc_normal_(self.latent_query, std=.02)
 
