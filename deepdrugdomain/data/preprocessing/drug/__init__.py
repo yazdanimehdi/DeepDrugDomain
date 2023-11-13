@@ -1,1 +1,1 @@
-from .smile_to_dgl_graphs_preprocessor import GraphFromSmilePreprocessor
+from .smile_to_dgl_graph import GraphFromSmilePreprocessor

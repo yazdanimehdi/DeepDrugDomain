@@ -1,6 +1,7 @@
-from typing import Optional, List
+from functools import partial
+from typing import Optional, List, Callable
 import dgl
-from dgllife.utils import smiles_to_bigraph, CanonicalAtomFeaturizer
+from dgllife.utils import smiles_to_bigraph, mol_to_bigraph
 from rdkit import Chem
 from .macfrag import MacFrag
 from deepdrugdomain.utils.exceptions import MissingRequiredParameterError
@@ -23,14 +24,15 @@ def _process_smile_graph(smile: str, max_block: int, max_sr: int, min_frag_atoms
     """
     mol = Chem.MolFromSmiles(smile)
     if mol is not None:
-        frags = MacFrag(mol, maxBlocks=max_block, maxSR=max_sr, asMols=False, minFragAtoms=min_frag_atoms)
+        frags = MacFrag(mol, maxBlocks=max_block, maxSR=max_sr,
+                        asMols=False, minFragAtoms=min_frag_atoms)
     else:
         return None
 
     return frags
 
 
-@PreprocessorFactory.register("dgl_graph_from_smile")
+@PreprocessorFactory.register("smile_to_dgl_graph")
 class GraphFromSmilePreprocessor(BasePreprocessor):
     """
     Preprocessor class to convert SMILES strings to DGLGraph objects.
@@ -43,8 +45,11 @@ class GraphFromSmilePreprocessor(BasePreprocessor):
 
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, node_featurizer: Callable, consider_hydrogen: bool = False, fragment: bool = False, **kwargs):
         super().__init__(**kwargs)
+        self.consider_hydrogen = consider_hydrogen
+        self.fragment = fragment
+        self.node_featurizer = node_featurizer
 
     def preprocess(self, data: str) -> Optional[dgl.DGLGraph]:
         """
@@ -58,29 +63,26 @@ class GraphFromSmilePreprocessor(BasePreprocessor):
         - A batched DGLGraph or None.
         """
         smile = data
-        if "fragment" not in self.kwargs:
-            raise MissingRequiredParameterError(self.__class__.__name__, "fragment")
 
-        fragment = self.kwargs['fragment']
-
-        node_featurizer = CanonicalAtomFeaturizer(atom_data_field='h')
-
-        if fragment:
+        if self.fragment:
             # Validate required parameters are provided
             required_keys = ["max_block", "max_sr", "min_frag_atom"]
             for item in required_keys:
                 if item not in self.kwargs:
-                    raise MissingRequiredParameterError(self.__class__.__name__, item)
+                    raise MissingRequiredParameterError(
+                        self.__class__.__name__, item)
 
             max_block = self.kwargs['max_block']
             max_sr = self.kwargs['max_sr']
             min_frag_atom = self.kwargs['min_frag_atom']
             try:
                 # Use the MacFrag method to fragment the SMILES and then construct a graph for each fragment.
-                frags = _process_smile_graph(smile, max_block, max_sr, min_frag_atom)
+                frags = _process_smile_graph(
+                    smile, max_block, max_sr, min_frag_atom)
                 if frags is None:
                     return None
-                smile_graphs = [smiles_to_bigraph(f, add_self_loop=True, node_featurizer=node_featurizer) for f in frags]
+                smile_graphs = [smiles_to_bigraph(
+                    f, add_self_loop=True, node_featurizer=self.node_featurizer) for f in frags]
                 constructed_graphs = dgl.batch(smile_graphs)
 
             except Exception as e:
@@ -88,8 +90,11 @@ class GraphFromSmilePreprocessor(BasePreprocessor):
 
         else:
             try:
+                mol = Chem.AddHs(Chem.MolFromSmiles(
+                    smile)) if self.consider_hydrogen else Chem.MolFromSmiles(smile)
                 # Construct a graph from the entire SMILES molecule.
-                constructed_graphs = smiles_to_bigraph(smile, add_self_loop=True, node_featurizer=node_featurizer)
+                constructed_graphs = mol_to_bigraph(
+                    mol, add_self_loop=True, node_featurizer=self.node_featurizer)
 
             except Exception as e:
                 print(e)

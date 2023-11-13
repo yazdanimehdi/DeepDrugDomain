@@ -146,12 +146,12 @@ class GraphFromPocketPreprocessor(BasePreprocessor):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def preprocess(self, data: pd.Series) -> Optional[dgl.DGLGraph]:
+    def preprocess(self, data: str) -> Optional[dgl.DGLGraph]:
         """
         Preprocess the given protein PDB identifier to generate a DGL graph.
 
         Parameters:
-        - data (pd.Series): Data row containing protein PDB identifier.
+        - data (str): PDB identifier.
         - **kwargs: Additional parameters necessary for preprocessing.
 
         Returns:
@@ -164,7 +164,8 @@ class GraphFromPocketPreprocessor(BasePreprocessor):
         required_keys = ["pdb_path", "protein_size_limit"]
         for item in required_keys:
             if item not in self.kwargs:
-                raise MissingRequiredParameterError(self.__class__.__name__, item)
+                raise MissingRequiredParameterError(
+                    self.__class__.__name__, item)
 
         path = self.kwargs['pdb_path']
         protein_size_limit = self.kwargs['protein_size_limit']
@@ -202,7 +203,8 @@ class GraphFromPocketPreprocessor(BasePreprocessor):
 
             # Extract binding pockets and construct corresponding DGL graphs
             pockets = _get_pockets_from_protein(pdb_file)
-            constructed_graphs = _get_constructed_graphs_for_pockets(pockets, m, am, d2)
+            constructed_graphs = _get_constructed_graphs_for_pockets(
+                pockets, m, am, d2)
 
             # Batch graphs together for more efficient processing
             constructed_graphs = dgl.batch(constructed_graphs)

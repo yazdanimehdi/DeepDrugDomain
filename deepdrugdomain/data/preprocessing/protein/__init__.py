@@ -1,1 +1,1 @@
-from .protein_graph_preprocessor import GraphFromPocketPreprocessor
+from .protein_site_to_dgl_graph import GraphFromPocketPreprocessor
