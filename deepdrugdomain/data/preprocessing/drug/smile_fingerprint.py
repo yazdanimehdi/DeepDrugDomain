@@ -117,7 +117,6 @@ class FingerprintFromSmilePreprocessor(BasePreprocessor):
                 ij_bond_dict = create_ij_bond_dict(mol, self.bond_dict)
                 fingerprints = extract_fingerprints(
                     atoms, ij_bond_dict, self.radius, self.fingerprint_dict, self.edge_dict)
-
             except Exception as e:
                 print(e)
                 fingerprints = None
@@ -126,5 +125,8 @@ class FingerprintFromSmilePreprocessor(BasePreprocessor):
             raise ValueError(
                 "Invalid method specified. Choose 'rdkit' or 'ammvf'.")
 
-        fingerprints = torch.tensor(fingerprints, dtype=torch.long)
-        return fingerprints
+        if fingerprints is None:
+            return None
+
+        else:
+            return torch.tensor(fingerprints, dtype=torch.float)

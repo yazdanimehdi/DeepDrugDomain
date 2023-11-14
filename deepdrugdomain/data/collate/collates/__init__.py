@@ -1,1 +1,2 @@
 from .binding_smile_graph_collate import BindingSiteSmilesGraphCollate
+from .ammvf_collate import AMMVFCollate

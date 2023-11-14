@@ -27,42 +27,42 @@ class PositionWiseFeedforward(nn.Module):
 
 @LayerFactory.register("ammvf_decoder_layer")
 class DecoderLayer(nn.Module):
-    def __init__(self, hid_dim: int, n_heads: int, pf_dim: int, self_attention: str, feed_forward: str, dropout: float) -> None:
+    def __init__(self, hid_dim: int, n_heads: int, pf_dim: int, self_attention: str, cross_attention: str, feed_forward: str, dropout: float) -> None:
         super().__init__()
 
         self.ln = nn.LayerNorm(hid_dim)
         self.sa = LayerFactory.create(
             self_attention, hid_dim, n_heads, **{"drop": dropout})
         self.ea = LayerFactory.create(
-            self_attention, hid_dim, n_heads, **{"drop": dropout})
+            cross_attention, hid_dim, n_heads, **{"drop": dropout})
         self.pf = LayerFactory.create(feed_forward, hid_dim, pf_dim, dropout)
         self.do = nn.Dropout(dropout)
 
     def forward(self, trg, src, trg_mask=None, src_mask=None):
-        trg1 = self.ln(trg + self.do(self.sa(trg, trg, trg, trg_mask)))
-        trg1 = self.ln(trg1 + self.do(self.ea(trg1, src, src, src_mask)))
+        trg1 = self.ln(trg + self.do(self.sa(trg, mask=trg_mask)))
+        trg1 = self.ln(trg1 + self.do(self.ea(trg1, src, mask=src_mask)))
         trg1 = self.ln(trg1 + self.do(self.pf(trg1)))
-        src1 = self.ln(src + self.do(self.sa(src, src, src, src_mask)))
-        src1 = self.ln(src1 + self.do(self.ea(src1, trg, trg, trg_mask)))
+        src1 = self.ln(src + self.do(self.sa(src, mask=src_mask)))
+        src1 = self.ln(src1 + self.do(self.ea(src1, trg, mask=trg_mask)))
         src1 = self.ln(src1 + self.do(self.pf(src1)))
 
-        m1 = torch.mean(trg1, dim=1)
-        m2 = torch.mean(src1, dim=1)
-
-        return m1, m2
+        return trg1, src1
 
 
 @LayerFactory.register("ammvf_decoder_block")
 class Decoder(nn.Module):
-    def __init__(self, hid_dim: int, n_layers: int, n_heads: int, pf_dim: int, decoder_layer: str, self_attention: str, feed_forward: str, dropout: float) -> None:
+    def __init__(self, hid_dim: int, n_layers: int, n_heads: int, pf_dim: int, decoder_layer: str, self_attention: str, cross_attention: str, feed_forward: str, dropout: float) -> None:
         super().__init__()
         self.layers = nn.ModuleList(
-            [LayerFactory.create(decoder_layer, hid_dim, n_heads, pf_dim, self_attention, feed_forward, dropout)
+            [LayerFactory.create(decoder_layer, hid_dim, n_heads, pf_dim, self_attention, cross_attention, feed_forward, dropout)
              for _ in range(n_layers)])
 
     def forward(self, trg, src, trg_mask=None, src_mask=None):
         for layer in self.layers:
             trg, src = layer(trg, src, trg_mask, src_mask)
+
+        trg = torch.mean(trg, dim=1)
+        src = torch.mean(src, dim=1)
         return trg, src
 
 
@@ -87,10 +87,10 @@ class InteractionModel(nn.Module):
         compound_embedded = compound_embedded.permute(1, 0, 2)
         protein_embedded = protein_embedded.permute(1, 0, 2)
 
-        compound_attention_output, _ = self.compound_attention(compound_embedded, compound_embedded,
-                                                               compound_embedded)
+        compound_attention_output, _ = self.compound_attention(
+            compound_embedded, return_attn=True)
         protein_attention_output, _ = self.protein_attention(
-            protein_embedded, protein_embedded, protein_embedded)
+            protein_embedded, return_attn=True)
 
         compound_attention_output = compound_attention_output.permute(1, 0, 2)
         protein_attention_output = protein_attention_output.permute(1, 0, 2)
@@ -177,7 +177,7 @@ class TensorNetworkModule(torch.nn.Module):
         return scores
 
 
-@ModelFactory.register("AMMVF")
+@ModelFactory.register("ammvf")
 class AMMVF(nn.Module):
     def __init__(self,
                  n_fingerprint: int,
@@ -236,15 +236,15 @@ class AMMVF(nn.Module):
 
         # Ensure the dimensions sequence is correct
         ligand_graph_conv_layer_dims = [
-            atom_dim] + ligand_graph_conv_layer_dims + [hidden_dim]
-        assert len(ligand_graph_conv_layer_dims) - 1 == len(ligand_graph_conv_layer) == len(
+            atom_dim] + ligand_graph_conv_layer_dims
+        assert len(ligand_graph_conv_layer_dims) == len(ligand_graph_conv_layer) == len(
             ligand_conv_dropout_rate) == len(ligand_conv_normalization) == len(ligand_graph_conv_layer_args)
 
         # Create ligand graph convolution layers
         self.ligand_graph_conv_layer = nn.ModuleList([
             LayerFactory.create(ligand_graph_conv_layer[i],
                                 ligand_graph_conv_layer_dims[i],
-                                ligand_graph_conv_layer_dims[i + 1],
+                                ligand_graph_conv_layer_dims[i],
                                 normalization=ligand_conv_normalization[i],
                                 dropout=ligand_conv_dropout_rate[i],
                                 **ligand_graph_conv_layer_args[i]) for i in range(len(ligand_graph_conv_layer))
@@ -277,7 +277,7 @@ class AMMVF(nn.Module):
         self.W_attention = nn.Linear(self.hid_dim, self.hid_dim)
 
         # Head layers for final prediction
-        self.head_dims = [self.hid_dim] + list(head_dims)
+        self.head_dims = list(head_dims)
         self.head = nn.Sequential(*[
             nn.Sequential(nn.Linear(self.head_dims[i], self.head_dims[i + 1]),
                           ActivationFactory.create(head_activation[i]),
@@ -288,29 +288,27 @@ class AMMVF(nn.Module):
         stdv = 1. / math.sqrt(self.weight.size(1))
         self.weight.data.uniform_(-stdv, stdv)
 
-    def forward(self, compound1: Tensor, compound2: Tensor, g: Any, protein1: Tensor, protein2: Tensor) -> Tensor:
+    def forward(self, protein1: Tensor, protein2: Tensor, compound2: Tensor, g: Any) -> Tensor:
         protein1 = torch.unsqueeze(protein1, dim=0)
         protein1 = self.fc1(protein1)
-
+        compound1 = g.ndata['h']
         compound1 = torch.unsqueeze(compound1, dim=0)
+        compound1 = compound1.to(torch.float64)
         compound1 = self.fc2(compound1)
-
         protein1_c, compound1_p = self.decoder(protein1, compound1)
-
-        compound_vectors = self.embed_fingerprint(compound2)
-        compound2 = torch.unsqueeze(compound_vectors, dim=0)
+        compound2 = compound2.to(torch.long)
+        compound2 = self.embed_fingerprint(compound2)
 
         for layer in self.ligand_graph_conv_layer:
             compound2 = layer(g, compound2)
+            compound2 = compound2.mean(dim=1)
 
-        compound2 = self.fc2(compound2)
-
+        compound2 = self.fc2(compound2.unsqueeze(0))
         protein2 = self.encoder(protein2.unsqueeze(0))
         com_att, pro_att = self.inter_att(compound2, protein2)
 
-        scores = self.tensor_network(com_att, pro_att)
-
-        out_fc = torch.cat((scores, compound1_p, protein1_c), 2)
+        scores = self.tensor_network(com_att, pro_att).squeeze(1)
+        out_fc = torch.cat((scores, compound1_p, protein1_c), 1)
 
         out = self.head(out_fc)
 

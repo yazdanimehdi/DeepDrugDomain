@@ -1,4 +1,6 @@
 from rdkit import Chem
+import torch
+import numpy as np
 
 
 def one_of_k_encoding(x, allowable_set):
@@ -45,4 +47,14 @@ def ammvf_atom_featurizer(atom, explicit_H=False, use_chirality=True):
         except:
             results = results + [False, False] + \
                 [atom.HasProp('_ChiralityPossible')]  # 31+3 =34
+
     return results
+
+
+def ammvf_mol_features(mol):
+    print(mol)
+    atom_feat = np.zeros((mol.GetNumAtoms(), 34))
+    for atom in mol.GetAtoms():
+        atom_feat[atom.GetIdx(), :] = ammvf_atom_featurizer(atom)
+
+    return {"h": torch.tensor(atom_feat, dtype=torch.float)}

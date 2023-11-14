@@ -1,1 +1,2 @@
 from .protein_site_to_dgl_graph import GraphFromPocketPreprocessor
+from .protein_kmers import KmersProteinPreprocessor

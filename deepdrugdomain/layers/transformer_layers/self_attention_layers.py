@@ -53,7 +53,7 @@ class Attention(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(kwargs["proj_drop"])
 
-    def forward(self, x, mask=None, return_attn=True):
+    def forward(self, x, mask=None, return_attn=False):
         B, N, C = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C //
                                   self.num_heads).permute(2, 0, 3, 1, 4)
@@ -151,8 +151,11 @@ class Block(nn.Module):
         self.mlp = LayerFactory.create(
             kwargs["Mlp_block"], dim, hidden_features=mlp_hidden_dim, act_layer=kwargs["act_layer"], drop=drop)
 
-    def forward(self, x):
-        v, attn = self.attn(self.norm1(x))
+    def forward(self, x, mask=None, return_attn=False):
+        v, attn = self.attn(self.norm1(x), mask=mask, return_attn=True)
         x = x + self.drop_path(v)
         x = x + self.drop_path(self.mlp(self.norm2(x)))
-        return x, attn
+        if return_attn:
+            return x, attn
+        else:
+            return x

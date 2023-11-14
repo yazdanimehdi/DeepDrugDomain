@@ -35,14 +35,17 @@ class Word2VecPreprocessor(BasePreprocessor):
         self.vec_size = vec_size
         self.kwargs = kwargs
         self.update_vocab = update_vocab
+        self.model = train_or_load_word2vec_model(
+            None, load_model_path=self.model_path, update_vocab=False, **self.kwargs) if os.path.exists(self.model_path) else None
 
     def data_preparations(self, data: Any) -> Any:
-        if os.path.exists(self.model_path):
-            self.model = train_or_load_word2vec_model(data,
-                                                      load_model_path=self.model_path, update_vocab=self.update_vocab, **self.kwargs)
-        else:
-            self.model = train_or_load_word2vec_model(
-                data, save_model_path=self.model_path, vector_size=self.vec_size, **self.kwargs)
+        if self.model is None:
+            if os.path.exists(self.model_path):
+                self.model = train_or_load_word2vec_model(data,
+                                                          load_model_path=self.model_path, update_vocab=self.update_vocab, **self.kwargs)
+            else:
+                self.model = train_or_load_word2vec_model(
+                    data, save_model_path=self.model_path, vector_size=self.vec_size, **self.kwargs)
 
         return data
 
@@ -67,4 +70,4 @@ class Word2VecPreprocessor(BasePreprocessor):
             vec[i, ] = self.model.wv[word]
             i += 1
 
-        return torch.from_numpy(vec)
+        return torch.tensor(vec, dtype=torch.float)

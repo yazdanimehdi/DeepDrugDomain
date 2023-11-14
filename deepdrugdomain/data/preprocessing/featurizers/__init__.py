@@ -1,1 +1,1 @@
-from .ammvf_atom_featurizer import ammvf_atom_featurizer
+from .ammvf_featurizer import ammvf_mol_features

@@ -430,7 +430,7 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
             Returns:
             - List[str]: List of data points that are considered invalid or unprocessed.
         """
-        if online and data:
+        if online and data is not None:
             for d in data:
                 if self.preprocess(d) is None:
                     self.none.append(d)

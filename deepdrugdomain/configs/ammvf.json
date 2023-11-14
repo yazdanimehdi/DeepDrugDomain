@@ -22,8 +22,8 @@
                 }
             ],
             "ligand_graph_conv_layer_dims": [
-                64,
-                64
+                34,
+                34
             ],
             "ligand_conv_dropout_rate": [
                 0.0,
@@ -45,8 +45,9 @@
                 "pf_dim": 256,
                 "decoder_layer": "ammvf_decoder_layer",
                 "self_attention": "transformer_attention",
+                "cross_attention": "transformer_cross_attention",
                 "feed_forward": "ammvf_position_wise_ff",
-                "dropout": 0.1
+                "dropout": 0
             },
             "head_dims": [
                 192,
@@ -54,9 +55,9 @@
                 1
             ],
             "head_dropout": [
-                0.1,
-                0.1,
-                0.1
+                0,
+                0,
+                0
             ],
             "head_activation": [
                 "relu",

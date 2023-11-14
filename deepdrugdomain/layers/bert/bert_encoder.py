@@ -42,13 +42,13 @@ from .utils import get_attn_pad_mask
 class BERTEncoder(nn.Module):
     def __init__(self,
                  dim: int = 32,
-                 hidden_dim: int = 32,
+                 hidden_dim: int = 64,
                  depth: int = 3,
                  embedding_layer: str = "bert_embedding",
                  embedding_layer_args: dict = {
-                     "vocab_size": 1000, "dim": 32, "max_len": 8112, "n_segments": 0},
+                     "vocab_size": 2500, "dim": 32, "max_len": 8112, "n_segments": 0},
                  encoder_layer: str = "transformer_attention_block",
-                 encoder_layer_args: dict = {"dim": 32, "num_heads": 8}) -> None:
+                 encoder_layer_args: dict = {"dim": 32, "num_heads": 8, "mlp_ratio": 2}) -> None:
         super(BERTEncoder, self).__init__()
         self.embedding = LayerFactory.create(
             embedding_layer, **embedding_layer_args)
