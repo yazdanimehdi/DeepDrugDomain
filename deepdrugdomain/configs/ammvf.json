@@ -52,7 +52,7 @@
             "head_dims": [
                 192,
                 64,
-                1
+                2
             ],
             "head_dropout": [
                 0,

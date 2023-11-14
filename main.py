@@ -105,14 +105,14 @@ def main(args):
     #     "attentionsitedti", "drugbank", [0.8, 0.1, 0.1])
     model = ModelFactory.create("ammvf")
     collate_fn = CollateFactory.create("ammvf_collate")
-    data_loader_train = DataLoader(datasets[0], batch_size=32, shuffle=True, num_workers=0, pin_memory=True,
+    data_loader_train = DataLoader(datasets[0], batch_size=1, shuffle=True, num_workers=0, pin_memory=True,
                                    collate_fn=collate_fn, drop_last=True)
 
     data_loader_val = DataLoader(datasets[1], drop_last=False, batch_size=32,
                                  num_workers=4, pin_memory=False, collate_fn=collate_fn)
     data_loader_test = DataLoader(datasets[2], drop_last=False, batch_size=32, collate_fn=collate_fn,
                                   num_workers=4, pin_memory=False)
-    criterion = torch.nn.BCEWithLogitsLoss()
+    criterion = torch.nn.CrossEntropyLoss()
     optimizer = OptimizerFactory.create(
         "adam", model.parameters(), lr=1e-3, weight_decay=1e-4)
     # scheduler = SchedulerFactory.create("cosine", optimizer)
@@ -121,39 +121,6 @@ def main(args):
     model.to(torch.float64)
     epochs = 200
 
-# for epoch in range(epochs):
-#     losses = []
-#     accs = []
-#     model.train()
-#     with tqdm(data_loader_train) as tepoch:
-#         tepoch.set_description(f"Epoch {epoch}")
-#         for batch_idx, (inp, target) in enumerate(tepoch):
-#             outs = []
-#             for item in range(len(inp[0])):
-#                 try:
-#                     inpu = (inp[0][item].to(device), inp[1][item].to(device))
-#                     protein1 = inp[0][0].to(device)
-#                     protein1 = protein1.to(torch.float64)
-#                     protein2 = inp[1][0].to(device)
-#                     compound1 = inp[2][0].to(device)
-#                     compound1 = compound1.to(torch.float64)
-#                     g = inp[3][0].to(device)
-#                     out = model(protein1, protein2, compound1, g)
-
-#                     target = target[0].to(device).view(-1, 1).to(torch.double)
-#                     loss = criterion(out, target)
-#                     matches = [torch.round(out) == torch.round(target)]
-#                     acc = matches.count(True)
-#                     accs.append(acc)
-#                     losses.append(loss.detach().cpu())
-
-#                 except Exception as e:
-#                     print(e)
-#                     pass
-#             loss.backward()
-    # scheduler = ExponentialLR(optimizer, gamma=0.9)
-    # epochs = 200
-    accum_iter = 2
     for epoch in range(epochs):
         losses = []
         accs = []
@@ -162,49 +129,89 @@ def main(args):
             tepoch.set_description(f"Epoch {epoch}")
             for batch_idx, (inp, target) in enumerate(tepoch):
                 outs = []
-                targets = []
                 for item in range(len(inp[0])):
                     try:
-                        protein1 = inp[0][item].to(device)
+                        inpu = (inp[0][item].to(device),
+                                inp[1][item].to(device))
+                        protein1 = inp[0][0].to(device)
                         protein1 = protein1.to(torch.float64)
-                        protein2 = inp[1][item].to(device)
-                        compound1 = inp[2][item].to(device)
+                        protein2 = inp[1][0].to(device)
+                        compound1 = inp[2][0].to(device)
                         compound1 = compound1.to(torch.float64)
-                        g = inp[3][item].to(device)
+                        g = inp[3][0].to(device)
                         out = model(protein1, protein2, compound1, g)
 
-                    # out = model(inpu)
-                        outs.append(out)
-                        targets.append(target[item])
-                    except:
+                        target = target[0].to(
+                            device).view(1).to(torch.long)
+                        loss = criterion(out, target)/32
+                        matches = [torch.argmax(out) == target]
+                        acc = matches.count(True)
+                        accs.append(acc)
+                        losses.append(loss.detach().cpu())
+                        loss.backward()
+                        tepoch.set_postfix(loss=np.mean(
+                            losses), accuracy=np.mean(accs))
+                    except Exception as e:
+                        print(e)
                         pass
-                out = torch.stack(outs, dim=0).squeeze(1)
+                    if batch_idx % 32 == 0:
+                        optimizer.step()
+                        optimizer.zero_grad()
 
-                target = torch.stack(targets, 0).to(
-                    device).view(-1, 1).to(torch.float)
-                loss = criterion(out, target)
-                matches = [torch.round(i) == torch.round(j)
-                           for i, j in zip(out, target)]
-                acc = matches.count(True) / len(matches)
-                accs.append(acc)
-                losses.append(loss.detach().cpu())
-                loss.backward()
-                if ((batch_idx + 1) % accum_iter == 0) or (batch_idx + 1 == len(data_loader_train)):
-                    optimizer.step()
-                    optimizer.zero_grad()
-                acc_mean = np.array(accs).mean()
-                loss_mean = np.array(losses).mean()
-                tepoch.set_postfix(loss=loss_mean, accuracy=100. * acc_mean)
-        # scheduler.step()
-        # test_func(model, data_loader_val, device)
-        # test_func(model, data_loader_test, device)
-        fn = "last_checkpoint_celegans.pt"
-        info_dict = {
-            'epoch': epoch,
-            'net_state': model.state_dict(),
-            'optimizer_state': optimizer.state_dict()
-        }
-        torch.save(info_dict, fn)
+    # scheduler = ExponentialLR(optimizer, gamma=0.9)
+    # epochs = 200
+    # accum_iter = 1
+    # for epoch in range(epochs):
+    #     losses = []
+    #     accs = []
+    #     model.train()
+    #     with tqdm(data_loader_train) as tepoch:
+    #         tepoch.set_description(f"Epoch {epoch}")
+    #         for batch_idx, (inp, target) in enumerate(tepoch):
+    #             outs = []
+    #             targets = []
+    #             for item in range(len(inp[0])):
+    #                 try:
+    #                     protein1 = inp[0][item].to(device)
+    #                     protein1 = protein1.to(torch.float64)
+    #                     protein2 = inp[1][item].to(device)
+    #                     compound1 = inp[2][item].to(device)
+    #                     compound1 = compound1.to(torch.float64)
+    #                     g = inp[3][item].to(device)
+    #                     out = model(protein1, protein2, compound1, g)
+
+    #                 # out = model(inpu)
+    #                     outs.append(out)
+    #                     targets.append(target[item])
+    #                 except:
+    #                     pass
+    #             out = torch.stack(outs, dim=0).squeeze(1)
+
+    #             target = torch.stack(targets, 0).to(
+    #                 device).view(-1).to(torch.long)
+    #             loss = criterion(out, target)
+    #             matches = [torch.round(i) == torch.round(j)
+    #                        for i, j in zip(out, target)]
+    #             # acc = matches.count(True) / len(matches)
+    #             # accs.append(acc)
+    #             losses.append(loss.detach().cpu())
+    #             loss.backward()
+    #             if ((batch_idx + 1) % accum_iter == 0) or (batch_idx + 1 == len(data_loader_train)):
+    #                 optimizer.step()
+    #                 optimizer.zero_grad()
+    #             # acc_mean = np.array(accs).mean()
+    #             loss_mean = np.array(losses).mean()
+    #             tepoch.set_postfix(loss=loss_mean, accuracy=0)
+    #     # scheduler.step()
+    #     # test_func(model, data_loader_val, device)
+    #     # test_func(model, data_loader_test, device)
+    #     fn = "last_checkpoint_celegans.pt"
+    #     info_dict = {
+    #         'epoch': epoch,
+    #         'net_state': model.state_dict(),
+    #         'optimizer_state': optimizer.state_dict()
+    #     }
+    #     torch.save(info_dict, fn)
 
 
 if __name__ == '__main__':
