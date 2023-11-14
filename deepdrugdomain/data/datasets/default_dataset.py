@@ -75,12 +75,13 @@ class DrugProteinDataset(Dataset):
         self.drug_preprocess_type = [x if x else (
             None, {}) for x in ensure_list(drug_preprocess_type)]
         self.drug_attributes = ensure_list(drug_attributes)
+        self.online_drug = ensure_list(online_preprocessing_drug)
+        self.in_mem_drug = ensure_list(in_memory_preprocessing_drug)
+        self.online_drug = [self.online_drug[0] for _ in range(len(self.drug_preprocess_type))] if len(
+            self.online_drug) == 1 else online_preprocessing_drug
 
-        self.online_drug = [online_preprocessing_drug[0] for _ in range(len(self.drug_preprocess_type))] if len(
-            online_preprocessing_drug) == 1 else online_preprocessing_drug
-
-        self.in_mem_drug = [in_memory_preprocessing_drug[0] for _ in range(len(self.drug_preprocess_type))] if len(
-            in_memory_preprocessing_drug) == 1 else in_memory_preprocessing_drug
+        self.in_mem_drug = [self.in_mem_drug[0] for _ in range(len(self.drug_preprocess_type))] if len(
+            self.in_mem_drug) == 1 else self.in_mem_drug
 
         self.drug_preprocessors = [PreprocessorFactory.create(i, **kw) for i, kw in
                                    self.drug_preprocess_type]
@@ -88,15 +89,14 @@ class DrugProteinDataset(Dataset):
         self.protein_preprocess_type = [x if x else (
             None, {}) for x in ensure_list(protein_preprocess_type)]
 
-        self.online_protein = [online_preprocessing_protein[0] for _ in range(len(self.protein_preprocess_type))] if len(
-            online_preprocessing_protein) == 1 else online_preprocessing_protein
-
-        self.in_mem_protein = [in_memory_preprocessing_protein[0] for _ in range(len(self.protein_preprocess_type))] if len(
-            in_memory_preprocessing_protein) == 1 else in_memory_preprocessing_protein
-
         self.protein_attributes = ensure_list(protein_attributes)
         self.online_protein = ensure_list(online_preprocessing_protein)
         self.in_mem_protein = ensure_list(in_memory_preprocessing_protein)
+        self.online_protein = [self.online_protein[0] for _ in range(len(self.protein_preprocess_type))] if len(
+            self.online_protein) == 1 else self.online_protein
+
+        self.in_mem_protein = [self.in_mem_protein[0] for _ in range(len(self.protein_preprocess_type))] if len(
+            self.in_mem_protein) == 1 else self.in_mem_protein
 
         self.protein_preprocessor = [PreprocessorFactory.create(i, **kw) for i, kw in
                                      self.protein_preprocess_type]
