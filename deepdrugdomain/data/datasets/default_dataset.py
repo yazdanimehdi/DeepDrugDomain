@@ -75,14 +75,25 @@ class DrugProteinDataset(Dataset):
         self.drug_preprocess_type = [x if x else (
             None, {}) for x in ensure_list(drug_preprocess_type)]
         self.drug_attributes = ensure_list(drug_attributes)
-        self.online_drug = ensure_list(online_preprocessing_drug)
-        self.in_mem_drug = ensure_list(in_memory_preprocessing_drug)
+
+        self.online_drug = [online_preprocessing_drug[0] for _ in range(len(self.drug_preprocess_type))] if len(
+            online_preprocessing_drug) == 1 else online_preprocessing_drug
+
+        self.in_mem_drug = [in_memory_preprocessing_drug[0] for _ in range(len(self.drug_preprocess_type))] if len(
+            in_memory_preprocessing_drug) == 1 else in_memory_preprocessing_drug
 
         self.drug_preprocessors = [PreprocessorFactory.create(i, **kw) for i, kw in
                                    self.drug_preprocess_type]
 
         self.protein_preprocess_type = [x if x else (
             None, {}) for x in ensure_list(protein_preprocess_type)]
+
+        self.online_protein = [online_preprocessing_protein[0] for _ in range(len(self.protein_preprocess_type))] if len(
+            online_preprocessing_protein) == 1 else online_preprocessing_protein
+
+        self.in_mem_protein = [in_memory_preprocessing_protein[0] for _ in range(len(self.protein_preprocess_type))] if len(
+            in_memory_preprocessing_protein) == 1 else in_memory_preprocessing_protein
+
         self.protein_attributes = ensure_list(protein_attributes)
         self.online_protein = ensure_list(online_preprocessing_protein)
         self.in_mem_protein = ensure_list(in_memory_preprocessing_protein)
@@ -118,12 +129,12 @@ class DrugProteinDataset(Dataset):
         """
         Validate that the lengths of the attributes match.
         """
-        assert len(self.drug_preprocess_type) == len(self.drug_attributes) == len(self.online_drug) == len(
-            self.in_mem_drug), "You must provide all the required fields for each drug preprocessor"
-        assert len(self.protein_preprocess_type) == len(self.protein_attributes) == len(self.online_protein) == len(
-            self.in_mem_protein), "You must provide all the required fields for each protein preprocessor"
-        assert len(self.label_preprocess_type) == len(self.label_attributes) == len(self.online_label) == len(
-            self.in_mem_label), "You must provide all the required fields for each label preprocessor"
+        assert len(self.drug_preprocess_type) == len(
+            self.drug_attributes), "You must provide all the required fields for each drug preprocessor"
+        assert len(self.protein_preprocess_type) == len(
+            self.protein_attributes), "You must provide all the required fields for each protein preprocessor"
+        assert len(self.label_preprocess_type) == len(
+            self.label_attributes), "You must provide all the required fields for each label preprocessor"
 
     def _initialize_label_preprocess(self) -> List[Tuple[Any, Dict[Any, Any]]]:
         all_data = self._get_data_by_type("label")
@@ -131,6 +142,7 @@ class DrugProteinDataset(Dataset):
         mapping = []
 
         for online, in_memory, preprocess, attribute in all_data:
+
             data = self.data[attribute].unique().tolist()
             if online:
                 mapping.append((attribute, None))

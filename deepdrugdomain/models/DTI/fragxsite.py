@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from deepdrugdomain.utils.weight_init import trunc_normal_
 
 
-@ModelFactory.register('fragxsite')
+@ModelFactory.register('fragxsitedti')
 class FragXSiteDTI(nn.Module):
     def __init__(self,
                  protein_graph_conv_layer: str,

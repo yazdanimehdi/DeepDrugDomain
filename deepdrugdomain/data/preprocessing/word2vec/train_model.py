@@ -13,10 +13,8 @@ Examples:
 >>> print(kmers)
 ['ATC', 'TCG', 'CGA', 'GAT', 'ATC', 'TCG', 'CGA']
 
->>> import pandas as pd
->>> data = {'Seq': ['ATCGATCGA', 'CGATCGATC']}
->>> df = pd.DataFrame(data)
->>> corpus = Corpus(df, ngram=3)
+>>> data = ['ATCGATCGA', 'CGATCGATC']
+>>> corpus = Corpus(data, ngram=3)
 >>> for kmer_sentence in corpus:
 ...     print(kmer_sentence)
 ['ATC', 'TCG', 'CGA', 'GAT', 'ATC', 'TCG', 'CGA']
@@ -53,22 +51,22 @@ def seq_to_kmers(seq: str,
 class Corpus:
     """ An iterable object for training word2vec models. """
 
-    def __init__(self, df: pd.DataFrame, ngram: int = 3):
+    def __init__(self, df: List[str], ngram: int = 3):
         self.df = df
         self.ngram = ngram
 
     def __iter__(self):
-        for sentence in self.df.Seq.values:
+        for sentence in self.df:
             yield seq_to_kmers(sentence, self.ngram)
 
 
-def train_or_load_word2vec_model(sentences_path: Optional[str] = None,
+def train_or_load_word2vec_model(sentences: List[str] = None,
                                  ngram: Optional[int] = 3,
                                  vector_size: int = 100,
                                  window: int = 5,
-                                 min_count: int = 5,
+                                 min_count: int = 1,
                                  workers: int = 4,
-                                 epochs: int = 5,
+                                 epochs: int = 30,
                                  save_model_path: Optional[str] = None,
                                  load_model_path: Optional[str] = None,
                                  update_vocab: bool = False) -> Word2Vec:
@@ -76,10 +74,10 @@ def train_or_load_word2vec_model(sentences_path: Optional[str] = None,
     Train a new Word2Vec model or continue training an existing one, with options to
     save or load the model to/from disk, and to use a chosen pretrained model.
 
-    :param sentences: Iterable of tokenized sentences for training the model (default: None)
+    :param sentences: List of sentences without extracting the words (default: None)
     :param vector_size: Dimensionality of the word vectors (default: 100)
     :param window: Maximum distance between current and predicted word within a sentence (default: 5)
-    :param min_count: Ignores all words with total frequency lower than this (default: 5)
+    :param min_count: Ignores all words with total frequency lower than this (default: 1)
     :param workers: Number of worker threads to train the model (default: 4)
     :param epochs: Number of training iterations over the corpus (default: 5)
     :param save_model_path: Path to save the trained model (default: None)
@@ -87,6 +85,7 @@ def train_or_load_word2vec_model(sentences_path: Optional[str] = None,
     :param update_vocab: Whether to update the model's vocabulary with new sentences (default: False)
     :return: Word2Vec model
     """
+
     if load_model_path and os.path.exists(load_model_path):
         model = Word2Vec.load(load_model_path)
 
@@ -96,19 +95,20 @@ def train_or_load_word2vec_model(sentences_path: Optional[str] = None,
 
     # Build vocabulary and train model
     if sentences is not None:
+        sentences = [seq_to_kmers(seq, ngram) for seq in sentences]
         if update_vocab and load_model_path:
             # Update the existing vocabulary
             model.build_vocab(sentences, update=True)
         else:
             model.build_vocab(sentences)  # Build vocabulary from scratch
 
-        sentences = pd.read_csv(sentences_path)
-        sentences = Corpus(sentences, ngram)
-        model.train(sentences, total_examples=model.corpus_count,
-                    epochs=epochs)  # Train the model
+            model.train(sentences, total_examples=len(sentences),
+                        epochs=epochs)  # Train the model
 
     # Save the model if a save path is provided
     if save_model_path:
         model.save(save_model_path)
+
+    print('Word2Vec model training complete.')
 
     return model

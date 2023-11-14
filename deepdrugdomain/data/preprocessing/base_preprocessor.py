@@ -69,6 +69,19 @@ class AbstractBasePreprocessor(ABC):
         pass
 
     @abstractmethod
+    def data_preparations(self, data: Any) -> Any:
+        """
+        Abstract method for preparing the data before preprocessing.
+
+        Parameters:
+        - data: The input data to preprocessing.
+
+        Returns:
+        - Prepared data.
+        """
+        pass
+
+    @abstractmethod
     def generate_mapping(self, data: Any) -> Dict[Any, Any]:
         """
         Abstract method to generate a mapping between original data and shards.
@@ -241,6 +254,7 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
 
         Direct instantiation of this class is restricted.
     """
+
     def __init__(self, **kwargs):
         """
            Initialize the BasePreprocessor.
@@ -264,6 +278,18 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
                Any: The preprocessed data.
         """
         pass
+
+    def data_preparations(self, data: Any) -> Any:
+        """
+           Prepare the data before preprocessing. By default, this method does nothing.
+
+           Parameters:
+               data (Any): The data to preprocessing.
+
+           Returns:
+               Any: The prepared data.
+        """
+        return data
 
     @ray.remote
     def _worker(self, data):
@@ -297,7 +323,8 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
         registered_name = self.__class__.__name__
         if processed is not None:
             # Assuming your save function accepts the base directory as a parameter
-            path = os.path.join(base_dir, f"{registered_name}_{prefix}_object_{idx}.bin")
+            path = os.path.join(
+                base_dir, f"{registered_name}_{prefix}_object_{idx}.bin")
             self.save_data(processed, path)
             return path
 
@@ -341,7 +368,7 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
                dict: Dictionary containing mapping info and processed data.
 
         """
-
+        data = self.data_preparations(data)
         ray.init(num_cpus=num_threads)
         registered_name = self.__class__.__name__
         if in_memory:
@@ -349,8 +376,10 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
             all_processed_data, invalid_results = self._process(futures, data)
             self.none = invalid_results
             mapping_info = self.generate_mapping(data)
-            self.save_preprocessed_to_disk(all_processed_data, directory, file_prefix)
-            save_mapping(mapping_info, os.path.join(directory, f"{registered_name}_{file_prefix}_mapping_info.json"))
+            self.save_preprocessed_to_disk(
+                all_processed_data, directory, file_prefix)
+            save_mapping(mapping_info, os.path.join(
+                directory, f"{registered_name}_{file_prefix}_mapping_info.json"))
             ray.shutdown()
             # Return the mapping info and the processed data
             return {
@@ -359,7 +388,8 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
             }
 
         else:
-            futures = {d: self._preprocess_and_save_data_point.remote(self, d, directory, idx, file_prefix) for idx, d in enumerate(data)}
+            futures = {d: self._preprocess_and_save_data_point.remote(
+                self, d, directory, idx, file_prefix) for idx, d in enumerate(data)}
             all_processed_data, invalid_results = self._process(futures, data)
             self.none = invalid_results
             save_mapping(all_processed_data,
@@ -513,7 +543,8 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
         registered_name = self.__class__.__name__
         file_name = f"{registered_name}_{file_prefix}_all.pkl"
 
-        serialized_data = {self._serialize_key(key): self._serialize_value(value) for key, value in data.items()}
+        serialized_data = {self._serialize_key(key): self._serialize_value(
+            value) for key, value in data.items()}
         with open(os.path.join(path, file_name), 'wb') as fp:
             pickle.dump(serialized_data, fp)
 
@@ -531,7 +562,8 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
         with open(path, "rb") as fp:
             data = pickle.load(fp)
 
-        original_data = {self._deserialize_key(key): self._deserialize_value(value) for key, value in data.items()}
+        original_data = {self._deserialize_key(key): self._deserialize_value(
+            value) for key, value in data.items()}
         return original_data
 
     def get_saved_path(self, path: str, prefix: str) -> Any:

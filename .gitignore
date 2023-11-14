@@ -172,3 +172,4 @@ drug_b.py
 .vscode/
 
 .DS_Store
+*.model

@@ -14,6 +14,8 @@ from deepdrugdomain.data.collate import CollateFactory
 from torch.utils.data import DataLoader
 from deepdrugdomain.models.factory import ModelFactory
 from deepdrugdomain.utils.config import args_to_config
+from deepdrugdomain.data.datasets import DatasetFactory
+from dgllife.utils import CanonicalAtomFeaturizer
 from pathlib import Path
 from tqdm import tqdm
 import deepdrugdomain as ddd
@@ -63,6 +65,12 @@ def main(args):
     seed = args.seed
     torch.manual_seed(seed)
     np.random.seed(seed)
+    feat = CanonicalAtomFeaturizer()
+    dataset = DatasetFactory.create("human", "data/human/", [("smile_to_dgl_graph", {"consider_hydrogen": True, "node_featurizer": feat}), ("smile_to_fingerprint", {
+                                    "method": "ammvf", "consider_hydrogen": True})], [("word2vec", {"model_path": "data/human/word2vec.model", "vec_size": 100})], ["Target_Seq"], True, drug_attributes=["SMILES", "SMILES"])
+
+    datasets = dataset(random_split=[0.8, 0.1, 0.1])
+    print(datasets[0][0][2])
     # dataset = CustomDataset(
     #     file_paths=["data/drugbank/DrugBank.txt",
     #                 "data/drugbank/drugbankSeqPdb.txt"],
@@ -92,15 +100,15 @@ def main(args):
     #                              num_workers=4, pin_memory=False, collate_fn=collate_fn)
     # data_loader_test = DataLoader(datasets[2], drop_last=False, batch_size=32, collate_fn=collate_fn,
     #                               num_workers=4, pin_memory=False)
-    model = ModelFactory.create("attentionsitedti")
-    criterion = torch.nn.BCELoss()
-    optimizer = OptimizerFactory.create(
-        "adamw", model.parameters(), lr=1e-4, weight_decay=0.03)
-    scheduler = SchedulerFactory.create("cosine", optimizer)
-    device = torch.device("cpu")
-    model.to(device)
+    # model = ModelFactory.create("attentionsitedti")
+    # criterion = torch.nn.BCELoss()
+    # optimizer = OptimizerFactory.create(
+    #     "adamw", model.parameters(), lr=1e-4, weight_decay=0.03)
+    # scheduler = SchedulerFactory.create("cosine", optimizer)
+    # device = torch.device("cpu")
+    # model.to(device)
 
-    epochs = 200
+    # epochs = 200
 #     accum_iter = 2
 #     for epoch in range(epochs):
 #         losses = []

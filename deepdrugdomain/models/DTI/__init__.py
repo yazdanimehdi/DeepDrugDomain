@@ -1,3 +1,3 @@
 from .attentionsitedti import AttentionSiteDTI
-from .fragxsite import FragXSite
+from .fragxsite import FragXSiteDTI
 from .ammvf import AMMVF

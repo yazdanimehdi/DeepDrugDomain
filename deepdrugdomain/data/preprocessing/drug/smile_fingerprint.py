@@ -61,13 +61,23 @@ def extract_fingerprints(atoms, ij_bond_dict, radius, fingerprint_dict, edge_dic
 @PreprocessorFactory.register("smile_to_fingerprint")
 class FingerprintFromSmilePreprocessor(BasePreprocessor):
 
-    def __init__(sel, consider_hydrogen: bool = False, **kwargs):
+    def __init__(self, method: str = 'rdkit',
+                 radius: int = 2,
+                 atom_dict: Optional[AtomDictType] = None,
+                 bond_dict: Optional[BondDictType] = None,
+                 fingerprint_dict: Optional[FingerprintDictType] = None,
+                 edge_dict: Optional[Dict] = None,
+                 consider_hydrogen: bool = False, **kwargs):
         super().__init__(**kwargs)
+        self.consider_hydrogen = consider_hydrogen
+        self.method = method
+        self.radius = radius
+        self.atom_dict = atom_dict
+        self.bond_dict = bond_dict
+        self.fingerprint_dict = fingerprint_dict
+        self.edge_dict = edge_dict
 
-    def preprocess(self, smiles: str,
-                   method: str = 'rdkit',
-                   radius: int = 2,
-                   consider_hydrogen: bool = False) -> Optional[torch.Tensor]:
+    def preprocess(self, smiles: str) -> Optional[torch.Tensor]:
         """
         Generate a molecular fingerprint based on a SMILES string.
 
@@ -86,31 +96,35 @@ class FingerprintFromSmilePreprocessor(BasePreprocessor):
             return None
 
         # Add hydrogens if the flag is set
-        if consider_hydrogen:
+        if self.consider_hydrogen:
             mol = Chem.AddHs(mol)
 
         # Use RDKit built-in method for fingerprinting
-        if method == 'rdkit':
-            return Chem.RDKFingerprint(mol)
+        if self.method == 'rdkit':
+            fingerprints = Chem.RDKFingerprint(mol)
 
-        elif method == 'ammvf':
+        elif self.method == 'ammvf':
+            self.atom_dict = self.atom_dict if self.atom_dict is not None else defaultdict(
+                lambda: len(self.atom_dict))
+            self.bond_dict = self.bond_dict if self.bond_dict is not None else defaultdict(
+                lambda: len(self.bond_dict))
+            self.fingerprint_dict = self.fingerprint_dict if self.fingerprint_dict is not None else defaultdict(
+                lambda: len(self.fingerprint_dict))
+            self.edge_dict = self.edge_dict if self.edge_dict is not None else defaultdict(
+                lambda: len(self.edge_dict))
             try:
-                atom_dict = defaultdict(lambda: len(atom_dict))
-                bond_dict = defaultdict(lambda: len(bond_dict))
-                fingerprint_dict = defaultdict(lambda: len(fingerprint_dict))
-                edge_dict = defaultdict(lambda: len(edge_dict))
-                atoms = create_atoms(mol, atom_dict)
-                ij_bond_dict = create_ij_bond_dict(mol, bond_dict)
+                atoms = create_atoms(mol, self.atom_dict)
+                ij_bond_dict = create_ij_bond_dict(mol, self.bond_dict)
                 fingerprints = extract_fingerprints(
-                    atoms, ij_bond_dict, radius, fingerprint_dict, edge_dict)
-                fingerprints = torch.tensor(fingerprints, dtype=torch.long)
+                    atoms, ij_bond_dict, self.radius, self.fingerprint_dict, self.edge_dict)
 
             except Exception as e:
                 print(e)
                 fingerprints = None
 
-            return fingerprints
-
         else:
             raise ValueError(
                 "Invalid method specified. Choose 'rdkit' or 'ammvf'.")
+
+        fingerprints = torch.tensor(fingerprints, dtype=torch.long)
+        return fingerprints

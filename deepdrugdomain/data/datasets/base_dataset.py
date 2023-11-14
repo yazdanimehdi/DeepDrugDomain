@@ -308,7 +308,7 @@ class CustomDataset(AbstractDataset):
         if return_df:
             return df
 
-        dataset = DrugProteinDataset(df,
+        dataset = DrugProteinDataset(df.head(100),
                                      self.drug_preprocess_type, self.drug_attributes, self.online_preprocessing_drug, self.in_memory_preprocessing_drug,
                                      self.protein_preprocess_type, self.protein_attributes, self.online_preprocessing_protein, self.in_memory_preprocessing_protein,
                                      self.label_attributes, self.label_preprocess_type, self.online_preprocessing_label, self.in_memory_preprocessing_label,

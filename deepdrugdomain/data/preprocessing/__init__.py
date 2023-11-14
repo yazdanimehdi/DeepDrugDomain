@@ -1,4 +1,5 @@
 from .factory import PreprocessorFactory
 from .base_preprocessor import BasePreprocessor, AbstractBasePreprocessor
-from .drug import GraphFromSmilePreprocessor
+from .drug import GraphFromSmilePreprocessor, FingerprintFromSmilePreprocessor
 from .protein import GraphFromPocketPreprocessor
+from .word2vec import Word2VecPreprocessor

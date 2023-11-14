@@ -1,6 +1,7 @@
 import os
 from typing import Dict, List, Optional, Tuple, Union
-from deepdrugdomain.data.datasets import CustomDataset, DatasetFactory
+from ..base_dataset import CustomDataset
+from ..factory import DatasetFactory
 
 
 @DatasetFactory.register('human')
@@ -82,14 +83,14 @@ class HumanDataset(CustomDataset):
                  associated_model: str | None = None,
                  threads: int = 4) -> None:
 
-        human_data_path = os.path.join(self.file_paths, 'human_data.txt')
-        humanSeqPdb_path = os.path.join(self.file_paths, 'humanSeqPdb.txt')
-        file_paths = [human_data_path, humanSeqPdb_path]
+        human_data_path = os.path.join(file_paths, 'human_data.txt')
+        humanSeqPdb_path = os.path.join(file_paths, 'humanSeqPdb.txt')
+        file_paths_new = [human_data_path, humanSeqPdb_path]
 
-        super().__init__(file_paths, drug_preprocess_type, drug_attributes, online_preprocessing_drug, in_memory_preprocessing_drug, protein_preprocess_type, protein_attributes, online_preprocessing_protein,
-                         in_memory_preprocessing_protein, label_attributes, label_preprocess_type, online_preprocessing_label, in_memory_preprocessing_label, save_directory, urls, common_columns, separators, associated_model, threads)
-
-        save_directory = self.file_paths if save_directory is None else save_directory
+        save_directory = file_paths if save_directory is None else save_directory
 
         if not os.path.exists(human_data_path) or not os.path.exists(humanSeqPdb_path):
             self.download()
+
+        super().__init__(file_paths_new, drug_preprocess_type, drug_attributes, online_preprocessing_drug, in_memory_preprocessing_drug, protein_preprocess_type, protein_attributes, online_preprocessing_protein,
+                         in_memory_preprocessing_protein, label_attributes, label_preprocess_type, online_preprocessing_label, in_memory_preprocessing_label, save_directory, urls, common_columns, separators, associated_model, threads)

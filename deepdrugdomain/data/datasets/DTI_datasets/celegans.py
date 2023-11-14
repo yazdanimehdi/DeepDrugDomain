@@ -1,6 +1,7 @@
 import os
 from typing import Dict, List, Optional, Tuple, Union
-from deepdrugdomain.data.datasets import CustomDataset, DatasetFactory
+from ..base_dataset import CustomDataset
+from ..factory import DatasetFactory
 
 
 @DatasetFactory.register('celegans')
@@ -83,6 +84,7 @@ class CelegansDataset(CustomDataset):
                  associated_model: str | None = None,
                  threads: int = 4) -> None:
 
+        self.file_paths = file_paths
         celegans_data_path = os.path.join(self.file_paths, 'true.txt')
         celegansSeqPdb_path = os.path.join(
             self.file_paths, 'celegansSeqPdb.txt')

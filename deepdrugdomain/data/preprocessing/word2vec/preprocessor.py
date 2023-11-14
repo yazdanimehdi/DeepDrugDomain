@@ -1,6 +1,6 @@
 from deepdrugdomain.data.preprocessing.base_preprocessor import BasePreprocessor
 from deepdrugdomain.data.preprocessing.factory import PreprocessorFactory
-from typing import Optional, Callable
+from typing import Any, Optional, Callable
 import torch
 from .train_model import seq_to_kmers, train_or_load_word2vec_model
 import numpy as np
@@ -9,7 +9,7 @@ import os
 
 @PreprocessorFactory.register("word2vec")
 class Word2VecPreprocessor(BasePreprocessor):
-    def __init__(self, model_path: str, vec_size: int, sentences_path: Optional[str] = None, sentence_preprocessing: Optional[Callable] = seq_to_kmers, **kwargs):
+    def __init__(self, model_path: str, vec_size: int, sentence_preprocessing: Optional[Callable] = seq_to_kmers, update_vocab: Optional[bool] = False, **kwargs):
         """
         A preprocessor class for generating Word2Vec embeddings for protein sequences.
 
@@ -30,16 +30,21 @@ class Word2VecPreprocessor(BasePreprocessor):
         - **kwargs: Additional keyword arguments passed to the BasePreprocessor.
         """
         super().__init__(**kwargs)
-        if os.path.exists(model_path):
-            self.model = train_or_load_word2vec_model(
-                load_model_path=model_path)
-        else:
-            assert sentences_path is not None, "sentences_path must be provided if model_path does not exist"
-            self.model = train_or_load_word2vec_model(
-                sentences_path=sentences_path, save_model_path=model_path, vector_size=vec_size, **kwargs)
-
+        self.model_path = model_path
         self.sentence_preprocessing = sentence_preprocessing
         self.vec_size = vec_size
+        self.kwargs = kwargs
+        self.update_vocab = update_vocab
+
+    def data_preparations(self, data: Any) -> Any:
+        if os.path.exists(self.model_path):
+            self.model = train_or_load_word2vec_model(data,
+                                                      load_model_path=self.model_path, update_vocab=self.update_vocab, **self.kwargs)
+        else:
+            self.model = train_or_load_word2vec_model(
+                data, save_model_path=self.model_path, vector_size=self.vec_size, **self.kwargs)
+
+        return data
 
     def preprocess(self, data: str) -> torch.Tensor:
         """
