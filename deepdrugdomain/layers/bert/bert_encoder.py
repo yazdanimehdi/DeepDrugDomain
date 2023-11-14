@@ -46,7 +46,7 @@ class BERTEncoder(nn.Module):
                  depth: int = 3,
                  embedding_layer: str = "bert_embedding",
                  embedding_layer_args: dict = {
-                     "vocab_size": 2500, "dim": 32, "max_len": 8112, "n_segments": 0},
+                     "vocab_size": 1500, "dim": 32, "max_len": 8112, "n_segments": 0},
                  encoder_layer: str = "transformer_attention_block",
                  encoder_layer_args: dict = {"dim": 32, "num_heads": 8, "mlp_ratio": 2}) -> None:
         super(BERTEncoder, self).__init__()

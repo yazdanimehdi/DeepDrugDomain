@@ -36,7 +36,13 @@
                 null
             ],
             "encoder_block": "bert_encoder",
-            "encoder_block_args": {},
+            "encoder_block_args": {
+                "embedding_layer_args": {
+                    "vocab_size": 3500,
+                    "dim": 32,
+                    "max_len": 8112,
+                    "n_segments": 0}
+            },
             "decoder_block": "ammvf_decoder_block",
             "decoder_block_args": {
                 "hid_dim": 64,
