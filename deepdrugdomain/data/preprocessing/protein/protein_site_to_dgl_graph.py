@@ -20,9 +20,7 @@ models in drug discovery and bioinformatics applications.
 
 import os
 from typing import Optional
-
-import pandas as pd
-from Bio.PDB import PDBList
+from ..utils import download_pdb
 from deepchem.dock import ConvexHullPocketFinder
 from dgllife.utils import atom_type_one_hot, atom_degree_one_hot, \
     atom_implicit_valence_one_hot, atom_formal_charge, atom_num_radical_electrons, atom_hybridization_one_hot, \
@@ -171,23 +169,7 @@ class GraphFromPocketPreprocessor(BasePreprocessor):
         protein_size_limit = self.kwargs['protein_size_limit']
 
         try:
-            # Check if PDB file exists locally, else download it
-            if not os.path.exists(path + pdb + '.pdb'):
-                pdbl = PDBList(verbose=False)
-                pdbl.retrieve_pdb_file(
-                    pdb, pdir=path, overwrite=False, file_format="pdb"
-                )
-
-                # Rename file to standard .pdb format from .ent
-                os.rename(
-                    path + "pdb" + pdb + ".ent", path + pdb + ".pdb"
-                )
-                # Confirm the file has been downloaded
-                if not any(pdb in s for s in os.listdir(path)):
-                    raise ValueError
-
-            pdb_file = path + pdb + ".pdb"
-
+            pdb_file = download_pdb(pdb, path)
             # Load the protein molecule from its PDB file
             m = Chem.MolFromPDBFile(pdb_file)
             n2 = m.GetNumAtoms()
