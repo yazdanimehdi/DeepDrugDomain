@@ -14,7 +14,7 @@ def split_sequence(sequence, ngram, word_dict):
     return np.array(words)
 
 
-@PreprocessorFactory.register("kmers_preprocessor")
+@PreprocessorFactory.register("kmers")
 class KmersProteinPreprocessor(BasePreprocessor):
     def __init__(self, ngram: int, word_dict: Optional[dict] = None, **kwargs):
         super().__init__(**kwargs)

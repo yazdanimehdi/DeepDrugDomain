@@ -41,7 +41,7 @@ from collections import defaultdict
 from typing import Dict, Optional, List, Callable, Union
 from rdkit import Chem, DataStructs
 import torch
-from .utils import calcPubChemFingerAll, rdNormalizedDescriptors, create_atoms, create_ij_bond_dict, extract_fingerprints
+from ..utils import calcPubChemFingerAll, rdNormalizedDescriptors, create_atoms, create_ij_bond_dict, extract_fingerprints
 from deepdrugdomain.utils.exceptions import MissingRequiredParameterError
 from ..factory import PreprocessorFactory
 from ..base_preprocessor import BasePreprocessor

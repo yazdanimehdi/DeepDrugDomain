@@ -4,7 +4,7 @@ Each of these classes is registered in the `LayerFactory` for unified layer mana
 """
 
 import torch.nn as nn
-from .utils import LayerFactory
+from ..utils import LayerFactory
 
 
 @LayerFactory.register('batch_norm1d')

@@ -23,6 +23,8 @@ class DrugVQA(nn.Module):
         neuron_list = [self.embedding_dim] + list(head_dims)
         for item in range(len(neuron_list) - 1):
             self.head.append(nn.Dropout(head_dropout_rate))
+            self.head.append(LayerFactory.create(head_normalization)
+                             if head_normalization else nn.Identity())
             self.head.append(
                 nn.Linear(neuron_list[item], neuron_list[item + 1]))
             self.head.append(ActivationFactory.create(

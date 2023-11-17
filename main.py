@@ -73,7 +73,7 @@ def main(args):
                                     protein_preprocess_type=[
                                         ("word2vec", {
                                          "model_path": "data/human/word2vec.model", "vec_size": 100}),
-                                        ("kmers_preprocessor", {"ngram": 3})
+                                        ("kmers", {"ngram": 3})
                                     ],
                                     protein_attributes=[
                                         "Target_Seq", "Target_Seq"],
@@ -103,6 +103,7 @@ def main(args):
     # )
     # model, datasets, collate_fn = ddd.utils.initialize_training_environment(
     #     "attentionsitedti", "drugbank", [0.8, 0.1, 0.1])
+
     model = ModelFactory.create("ammvf")
     collate_fn = CollateFactory.create("ammvf_collate")
     data_loader_train = DataLoader(datasets[0], batch_size=32, shuffle=True, num_workers=0, pin_memory=True,
