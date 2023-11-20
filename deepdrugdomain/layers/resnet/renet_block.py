@@ -26,7 +26,7 @@ class BasicBlock(nn.Module):
             self,
             inplanes: int,
             planes: int,
-            kernel_size_1: int = 3,
+            kernel_size_1: int = 5,
             kernel_size_2: int = 3,
             stride_1: int = 1,
             stride_2: int = 1,

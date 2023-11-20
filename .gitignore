@@ -174,3 +174,7 @@ drug_b.py
 .DS_Store
 *.model
 .DS_Store
+._.DS_Store
+**/.DS_Store
+**/._.DS_Store
+*.pdb

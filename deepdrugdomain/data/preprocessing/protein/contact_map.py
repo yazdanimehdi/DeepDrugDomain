@@ -60,6 +60,10 @@ class ContactMapFromPDBPreprocessor(BasePreprocessor):
             Exception: If there is an error in processing the PDB file.
         """
         try:
+            pdb = pdb.lower()
+            if len(pdb) > 4:
+                pdb = pdb[:4]
+
             parser = PDBParser()
             pdb_path = download_pdb(pdb, self.pdb_path)
             structure = parser.get_structure('protein', pdb_path)
@@ -84,7 +88,7 @@ class ContactMapFromPDBPreprocessor(BasePreprocessor):
             for i, atom1 in enumerate(atoms):
                 # To avoid duplicate calculations
                 for j, atom2 in enumerate(atoms[i+1:], i+1):
-                    distance = (atom1 - atom2).get_vector().norm()
+                    distance = (atom1 - atom2)
                     if self.normalize_distance:
                         contact_map[i, j] = contact_map[j, i] = 1 / \
                             (1 + distance / self.distance_threshold)
@@ -95,5 +99,5 @@ class ContactMapFromPDBPreprocessor(BasePreprocessor):
             return torch.from_numpy(contact_map)
 
         except Exception as e:
-            print(f'Error processing PDB file {pdb_path}: {e}')
+            print(f'Error processing PDB file {self.pdb_path}: {e}')
             return None

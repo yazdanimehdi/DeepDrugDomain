@@ -259,9 +259,9 @@ class AttentionSiteDTI(nn.Module):
             self.lstm = nn.LSTM(lstm_input, self.embedding_dim, num_layers=lstm_num_layers, bidirectional=use_bilstm,
                                 dropout=lstm_dropout_rate)
             self.h_0 = Variable(torch.zeros(
-                lstm_num_layers * 2, 1, self.embedding_dim).cuda())
+                lstm_num_layers * 2, 1, self.embedding_dim))
             self.c_0 = Variable(torch.zeros(
-                lstm_num_layers * 2, 1, self.embedding_dim).cuda())
+                lstm_num_layers * 2, 1, self.embedding_dim))
 
         else:
             self.lstm = nn.Identity()

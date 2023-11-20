@@ -28,7 +28,7 @@ import torch
 from deepdrugdomain.utils.exceptions import MissingRequiredParameterError
 from ..factory import PreprocessorFactory
 from ..base_preprocessor import BasePreprocessor
-from ..utils import GetQuasiSequenceOrder, CalculateAADipeptideComposition, _GetPseudoAAC, CalculateConjointTriad
+from ..utils import GetQuasiSequenceOrder, CalculateAADipeptideComposition, GetPseudoAAC, CalculateConjointTriad
 import numpy as np
 
 
@@ -90,7 +90,7 @@ class FingerprintFromSequencePreprocessor(BasePreprocessor):
                 features = np.array(features)
 
             elif self.method == 'paac':
-                features = _GetPseudoAAC(sequence)
+                features = GetPseudoAAC(sequence)
                 features = np.array(features)
 
             elif self.method == 'ct':

@@ -354,7 +354,7 @@ def _GetPseudoAAC2(ProteinSequence, lamda=10, weight=0.05):
 #############################################################################################
 
 
-def _GetPseudoAAC(ProteinSequence, lamda=10, weight=0.05):
+def GetPseudoAAC(ProteinSequence, lamda=10, weight=0.05):
     """
     #######################################################################################
     Computing all of type I pseudo-amino acid compostion descriptors based on three given
