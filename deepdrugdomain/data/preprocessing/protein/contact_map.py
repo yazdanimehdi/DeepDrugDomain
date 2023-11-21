@@ -96,7 +96,7 @@ class ContactMapFromPDBPreprocessor(BasePreprocessor):
                         contact_map[i, j] = contact_map[j,
                                                         i] = 1 if distance <= self.distance_threshold else 0
 
-            return torch.from_numpy(contact_map)
+            return torch.from_numpy(contact_map).unsqueeze(0)
 
         except Exception as e:
             print(f'Error processing PDB file {self.pdb_path}: {e}')

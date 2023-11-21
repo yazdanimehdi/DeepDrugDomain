@@ -1,2 +1,3 @@
 from .smile_to_dgl_graph import GraphFromSmilePreprocessor
 from .smile_fingerprint import FingerprintFromSmilePreprocessor
+from .smile_embedding import SMILESToEmbeddingPreprocessor

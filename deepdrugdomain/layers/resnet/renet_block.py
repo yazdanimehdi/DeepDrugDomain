@@ -32,16 +32,16 @@ class BasicBlock(nn.Module):
             stride_2: int = 1,
             stride: int = 1,
             downsample: Optional[str] = None,
-            downsample_kwargs: Optional[Dict[str, Any]] = None,
+            downsample_kwargs: Optional[Dict[str, Any]] = {},
             cardinality: int = 1,
             base_width: int = 64,
             reduce_first: int = 1,
             dilation: int = 1,
-            first_dilation: Optional[int] = None,
+            first_dilation: Optional[int] = 2,
             act_layer: str = "relu",
-            norm_layer: str = "batchnorm2d",
+            norm_layer: str = "batch_norm2d",
             attn_layer: Optional[str] = None,
-            attn_layer_kwargs: Optional[Dict[str, Any]] = None,
+            attn_layer_kwargs: Optional[Dict[str, Any]] = {},
             aa_layer: Optional[Type[nn.Module]] = None,
             drop_block: Optional[str] = None,
             drop_path: float = 0.0,
@@ -50,7 +50,6 @@ class BasicBlock(nn.Module):
         Args:
         """
         super(BasicBlock, self).__init__()
-
         assert cardinality == 1, 'BasicBlock only supports cardinality of 1'
         assert base_width == 64, 'BasicBlock does not support changing base width'
         first_planes = planes // reduce_first
@@ -58,27 +57,21 @@ class BasicBlock(nn.Module):
         first_dilation = first_dilation or dilation
         use_aa = aa_layer is not None and (
             stride == 2 or first_dilation != dilation)
-
         self.conv1 = nn.Conv2d(
-            inplanes, first_planes, kernel_size=kernel_size_1, stride=stride_1 if use_aa else stride, padding=first_dilation,
-            dilation=first_dilation, bias=False)
-        self.bn1 = norm_layer(first_planes)
+            inplanes, first_planes, kernel_size=kernel_size_1, stride=stride_1 if use_aa else stride, padding=first_dilation, bias=False)
+        self.bn1 = LayerFactory.create(norm_layer, first_planes)
         self.drop_block = drop_block() if drop_block is not None else nn.Identity()
         self.act1 = ActivationFactory.create(act_layer, inplace=True)
         self.aa = create_aa(aa_layer, channels=first_planes,
                             stride=stride, enable=use_aa)
-
         self.conv2 = nn.Conv2d(
-            first_planes, outplanes, kernel_size=kernel_size_2, stride=stride_2, padding=dilation, dilation=dilation, bias=False)
+            first_planes, outplanes, kernel_size=kernel_size_2, stride=stride_2, padding=dilation, bias=False)
         self.bn2 = LayerFactory.create(norm_layer, outplanes)
-
         self.se = LayerFactory.create(
             attn_layer, outplanes, **attn_layer_kwargs) if attn_layer else None
-
         self.act2 = ActivationFactory.create(act_layer, inplace=True)
         self.downsample = LayerFactory.create(
-            downsample, inplanes, outplanes, stride, **downsample_kwargs)
-
+            downsample, inplanes, outplanes, stride, **downsample_kwargs) if downsample else None
         self.stride = stride
         self.dilation = dilation
         self.drop_path = LayerFactory.create(
@@ -90,25 +83,19 @@ class BasicBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         shortcut = x
-
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.drop_block(x)
         x = self.act1(x)
         x = self.aa(x)
-
         x = self.conv2(x)
         x = self.bn2(x)
-
         if self.se is not None:
             x = self.se(x)
-
         if self.drop_path is not None:
             x = self.drop_path(x)
-
         if self.downsample is not None:
             shortcut = self.downsample(shortcut)
         x += shortcut
         x = self.act2(x)
-
         return x

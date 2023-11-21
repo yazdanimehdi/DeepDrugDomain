@@ -177,4 +177,5 @@ drug_b.py
 ._.DS_Store
 **/.DS_Store
 **/._.DS_Store
+**/**/pdb/
 *.pdb

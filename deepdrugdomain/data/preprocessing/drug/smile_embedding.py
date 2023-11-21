@@ -20,7 +20,7 @@ TOKEN_REGEX = r'(\[[^\[\]]{1,6}\])'
 
 @PreprocessorFactory.register('smiles_to_embedding')
 class SMILESToEmbeddingPreprocessor(BasePreprocessor):
-    def __init__(self, embedding_dim: int = 128, max_sequence_length: Optional[int] = None, replacement_dict: Dict[str, str] = REPLACEMENTS, token_regex: str = TOKEN_REGEX, **kwargs):
+    def __init__(self, one_hot: bool = False, embedding_dim: Optional[int] = None, max_sequence_length: Optional[int] = None, replacement_dict: Dict[str, str] = REPLACEMENTS, token_regex: str = TOKEN_REGEX, **kwargs):
         """
         Initializes the SMILESToEmbeddingPreprocessor with an embedding dimension and optional max sequence length for padding.
 
@@ -32,7 +32,11 @@ class SMILESToEmbeddingPreprocessor(BasePreprocessor):
             **kwargs: Additional keyword arguments to be passed to the BasePreprocessor class.
         """
         super().__init__(**kwargs)
+        self.one_hot = one_hot
         self.embedding_dim = embedding_dim
+        if one_hot:
+            assert embedding_dim is not None, "Must specify embedding dimension if one-hot is True"
+
         self.max_sequence_length = max_sequence_length
         self.replacement_dict = replacement_dict
         self.token_regex = token_regex
@@ -89,23 +93,38 @@ class SMILESToEmbeddingPreprocessor(BasePreprocessor):
 
         tokens = self.tokenize_smiles(smiles)
         sequence_length = len(tokens)
-        one_hot_matrix = np.zeros(
-            (sequence_length, self.embedding_dim), dtype=np.float32)
+        if self.one_hot:
+            one_hot_matrix = np.zeros(
+                (sequence_length, self.embedding_dim), dtype=np.float32)
 
-        for i, token in enumerate(tokens):
-            token_idx = self.token_to_idx.get(token)
-            if token_idx is None:
-                print(f"Unrecognized token in SMILES: {token}")
-                return None
-            # Subtract 1 because indices start at 1
-            one_hot_matrix[i, token_idx - 1] = 1
+            for i, token in enumerate(tokens):
+                token_idx = self.token_to_idx.get(token)
+                if token_idx is None:
+                    print(f"Unrecognized token in SMILES: {token}")
+                    return None
+                # Subtract 1 because indices start at 1
+                one_hot_matrix[i, token_idx - 1] = 1
 
-        one_hot_tensor = torch.from_numpy(one_hot_matrix)
-        if self.max_sequence_length:
-            # Calculate how much padding is needed
-            padding_needed = self.max_sequence_length - sequence_length
-            # Pad the tensor if needed, pad is a tuple (pad_left, pad_right, pad_top, pad_bottom)
-            one_hot_tensor = F.pad(
-                one_hot_tensor, (0, 0, 0, padding_needed), 'constant', 0)
+            one_hot_tensor = torch.from_numpy(one_hot_matrix)
+            if self.max_sequence_length:
+                # Calculate how much padding is needed
+                padding_needed = self.max_sequence_length - sequence_length
+                # Pad the tensor if needed, pad is a tuple (pad_left, pad_right, pad_top, pad_bottom)
+                one_hot_tensor = F.pad(
+                    one_hot_tensor, (0, 0, 0, padding_needed), 'constant', 0)
+                print(one_hot_tensor.shape)
+        else:
+            if self.max_sequence_length:
+                # Calculate how much padding is needed
+                padding_needed = self.max_sequence_length - sequence_length
+                # Pad the tensor if needed, pad is a tuple (pad_left, pad_right, pad_top, pad_bottom)
+                tokens = tokens + ['<PAD>'] * padding_needed
 
-        return one_hot_tensor
+            max_length = self.max_sequence_length if self.max_sequence_length else sequence_length
+            embedding_matrix = np.zeros(max_length, dtype=np.float32)
+            for idx, item in enumerate(tokens):
+                embedding_matrix[idx] = self.token_to_idx[item]
+
+            one_hot_tensor = torch.from_numpy(embedding_matrix)
+
+        return one_hot_tensor.to(torch.long)

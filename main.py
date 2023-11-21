@@ -68,8 +68,8 @@ def main(args):
     feat = CanonicalAtomFeaturizer()
     dataset = DatasetFactory.create("human",
                                     file_paths="data/human/",
-                                    drug_preprocess_type=[("smile_to_dgl_graph", {
-                                                           "consider_hydrogen": True, "node_featurizer": ddd.data.preprocessing.ammvf_mol_features})],
+                                    drug_preprocess_type=[("smiles_to_embedding", {
+                                                           "max_sequence_length": 247})],
                                     protein_preprocess_type=[
                                         ("contact_map_from_pdb", {
                                          "pdb_path": "data/human/pdb/"})
@@ -81,75 +81,56 @@ def main(args):
                                     online_preprocessing_protein=[False],)
 
     datasets = dataset(random_split=[0.8, 0.1, 0.1])
-    # dataset = CustomDataset(
-    #     file_paths=["data/drugbank/DrugBank.txt",
-    #                 "data/drugbank/drugbankSeqPdb.txt"],
-    #     common_columns={"sequence": "TargetSequence"},
-    #     separators=[" ", ","],
-    #     drug_preprocess_type=("dgl_graph_from_smile",
-    #                           {"fragment": False, "max_block": 6, "max_sr": 8, "min_frag_atom": 1}),
-    #     drug_attributes="SMILE",
-    #     online_preprocessing_drug=False,
-    #     in_memory_preprocessing_drug=True,
-    #     protein_preprocess_type=(
-    #         "dgl_graph_from_protein_pocket", {"pdb_path": "data/pdb/", "protein_size_limit": 10000}),
-    #     protein_attributes="pdb_id",
-    #     online_preprocessing_protein=False,
-    #     in_memory_preprocessing_protein=False,
-    #     label_attributes="Label",
-    #     save_directory="data/drugbank/",
-    #     threads=8
-    # )
-    # model, datasets, collate_fn = ddd.utils.initialize_training_environment(
-    #     "attentionsitedti", "drugbank", [0.8, 0.1, 0.1])
-
-    # model = ModelFactory.create("ammvf")
+    model = ModelFactory.create("drugvqa")
     # collate_fn = CollateFactory.create("ammvf_collate")
-    # data_loader_train = DataLoader(datasets[0], batch_size=32, shuffle=True, num_workers=0, pin_memory=True,
-    #                                collate_fn=collate_fn, drop_last=True)
+    data_loader_train = DataLoader(datasets[0], batch_size=32, shuffle=True, num_workers=0, pin_memory=True,
+                                   drop_last=True)
 
-    # data_loader_val = DataLoader(datasets[1], drop_last=False, batch_size=32,
-    #                              num_workers=4, pin_memory=False, collate_fn=collate_fn)
-    # data_loader_test = DataLoader(datasets[2], drop_last=False, batch_size=32, collate_fn=collate_fn,
-    #                               num_workers=4, pin_memory=False)
-    # criterion = torch.nn.CrossEntropyLoss()
-    # optimizer = OptimizerFactory.create(
-    #     "adam", model.parameters(), lr=1e-3, weight_decay=1e-4)
-    # # scheduler = SchedulerFactory.create("cosine", optimizer)
-    # device = torch.device("cpu")
-    # model.to(device)
+    data_loader_val = DataLoader(datasets[1], drop_last=False, batch_size=32,
+                                 num_workers=4, pin_memory=False)
+    data_loader_test = DataLoader(datasets[2], drop_last=False, batch_size=32,
+                                  num_workers=4, pin_memory=False)
+    criterion = torch.nn.BCELoss()
+    optimizer = OptimizerFactory.create(
+        "adam", model.parameters(), lr=1e-3, weight_decay=1e-4)
+    # scheduler = SchedulerFactory.create("cosine", optimizer)
+    device = torch.device("cpu")
+    model.to(device)
     # model.to(torch.float64)
-    # epochs = 200
+    epochs = 200
 
-    # for epoch in range(epochs):
-    #     losses = []
-    #     accs = []
-    #     model.train()
-    #     with tqdm(data_loader_train) as tepoch:
-    #         tepoch.set_description(f"Epoch {epoch}")
-    #         for batch_idx, (inp, target) in enumerate(tepoch):
-    #             outs = []
-    #             for item in range(len(inp[0])):
-    #                 try:
-    #                     inpu = (inp[0][item].to(device), inp[1][item].to(device))
-    #                     protein1 = inp[0][0].to(device)
-    #                     protein1 = protein1.to(torch.float64)
-    #                     protein2 = inp[1][0].to(device)
-    #                     compound1 = inp[2][0].to(device)
-    #                     compound1 = compound1.to(torch.float64)
-    #                     g = inp[3][0].to(device)
-    #                     out = model(protein1, protein2, compound1, g)
-
-    #                     target = target[0].to(device).view(-1, 1).to(torch.double)
-    #                     loss = criterion(out, target)/32
-    #                     matches = [torch.round(out) == torch.round(target)]
-    #                     acc = matches.count(True)
-    #                     accs.append(acc)
-    #                     losses.append(loss.detach().cpu())
-
-    #                 except Exception as e:
-    #                     print(e)
-    #                     pass
+    for epoch in range(epochs):
+        losses = []
+        accs = []
+        model.train()
+        with tqdm(datasets[0]) as tepoch:
+            tepoch.set_description(f"Epoch {epoch}")
+            for batch_idx, (pic, smile, target) in enumerate(tepoch):
+                outs = []
+                targets = []
+                smile = smile.to(device)
+                smile = smile.unsqueeze(0).to(torch.long)
+                pic = pic.unsqueeze(0).unsqueeze(0).to(device)
+                out = torch.sigmoid(model(smile, pic))
+                outs.append(out)
+                target = target.to(
+                    device).view(-1, 1).to(torch.float)
+                targets.append(target)
+                if batch_idx % 32 == 0:
+                    out = torch.stack(outs, dim=0).squeeze(1)
+                    target = torch.stack(targets, 0).to(
+                        device).view(-1, 1).to(torch.float)
+                    loss = criterion(out, target)
+                    loss.backward()
+                    optimizer.step()
+                    optimizer.zero_grad()
+                    loss = criterion(out, target)
+                    matches = [torch.round(out) == torch.round(target)]
+                    acc = matches.count(True)
+                    accs.append(acc)
+                    losses.append(loss.detach().cpu())
+                    outs = []
+                    targets = []
 
     # scheduler = ExponentialLR(optimizer, gamma=0.9)
     # epochs = 200

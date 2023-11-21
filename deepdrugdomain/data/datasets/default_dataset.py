@@ -173,7 +173,8 @@ class DrugProteinDataset(Dataset):
         for online, in_memory, preprocess, attribute in all_data:
             data = self.data[attribute].unique().tolist()
             if online:
-                data = preprocess.data_preparations(data)
+                if preprocess is not None:
+                    data = preprocess.data_preparations(data)
                 mapping.append((attribute, None))
                 continue
 

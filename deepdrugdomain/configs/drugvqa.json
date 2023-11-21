@@ -1,0 +1,34 @@
+{
+    "model": {
+        "default": {
+            "attention_layers_smile": "drugvqa_seq_attention",
+            "attention_layers_smile_kwargs": {"num_heads": 10, "dim_input": 128, "dim_hidden": 32},
+            "attention_layers_seq": "drugvqa_seq_attention",
+            "attention_layers_seq_kwargs": {"num_heads": 10, "dim_input": 8, "dim_hidden": 8},
+            "contact_map_in_channels": 1,
+            "contact_map_out_channels": 8 ,
+            "contact_map_kernel_size": 3,
+            "contact_map_stride": 1,
+            "contact_map_activation_fn": "elu",
+            "contact_map_normalization_layer": "batch_norm2d",
+            "vocab_size_smiles": 247,
+            "vocab_size_seq": 21,
+            "embedding_dim": 30,
+            "resnet_block1": "resnet_basic_block",
+            "resnet_block1_kwargs": {},
+            "resnet_block1_layers": 4,
+            "resnet_block2": "resnet_basic_block",
+            "resnet_block2_kwargs": {},
+            "resnet_block2_layers": 4,
+            "lstm_hid_dim": 64,
+            "lstm_layers": 2,
+            "lstm_bidirectional": true,
+            "lstm_dropout": 0.2,
+            "num_batches": 1,
+            "head_normalization": null,
+            "head_dims": [64, 1],
+            "head_dropout_rate": 0.1,
+            "head_activation_fn": "relu"
+        }
+    }
+}

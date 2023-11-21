@@ -24,7 +24,7 @@ class DrugVQASequentialAttention(nn.Module):
 
     def forward(self, x):
         att = self.activation_fn(self.first_linear(x))
-        att = self.linear_second(att)
+        att = self.second_linear(att)
         att = torch.softmax(att, axis=1)
         att = att.transpose(1, 2)
         embed = att @ x
@@ -66,7 +66,7 @@ class DrugVQA(nn.Module):
         super().__init__()
 
         self.lstm_hid_dim = lstm_hid_dim
-
+        self.embedding_dim = embedding_dim
         # rnn
         self.embeddings = nn.Embedding(vocab_size_smiles, embedding_dim)
         self.seq_embed = nn.Embedding(vocab_size_seq, embedding_dim)
@@ -79,7 +79,7 @@ class DrugVQA(nn.Module):
         self.conv = nn.Conv2d(contact_map_in_channels, contact_map_out_channels,
                               kernel_size=contact_map_kernel_size, stride=contact_map_stride)
         self.bn = LayerFactory.create(
-            contact_map_normalization_layer, self.in_channels)
+            contact_map_normalization_layer, contact_map_out_channels)
         self.contact_map_act = ActivationFactory.create(
             contact_map_activation_fn)
 
@@ -90,17 +90,18 @@ class DrugVQA(nn.Module):
             resnet_block2, inplanes=contact_map_out_channels, planes=contact_map_out_channels, **resnet_block2_kwargs) for _ in range(resnet_block2_layers)])
 
         h_0 = Variable(torch.zeros(2 * lstm_layers,
-                       num_batches, self.embedding_dim))
+                       num_batches, self.lstm_hid_dim))
         c_0 = Variable(torch.zeros(2 * lstm_layers,
-                       num_batches, self.embedding_dim))
+                       num_batches, self.lstm_hid_dim))
         self.lstm_hidden_state = (h_0, c_0)
 
         self.seq_attention = LayerFactory.create(
             attention_layers_seq, **attention_layers_seq_kwargs)
         # Prediction layer
-        self.head = nn.ModuleList()
+        self.head = []
         neuron_list = [self.lstm_hid_dim * lstm_layers +
-                       attention_layers_seq_kwargs["dim_hidden"]] + list(head_dims)
+                       contact_map_out_channels] + list(head_dims)
+
         for item in range(len(neuron_list) - 1):
             self.head.append(nn.Dropout(head_dropout_rate))
             self.head.append(LayerFactory.create(head_normalization)
@@ -110,8 +111,7 @@ class DrugVQA(nn.Module):
             self.head.append(ActivationFactory.create(
                 head_activation_fn) if head_activation_fn else nn.Identity())
 
-        trunc_normal_(self.latent_query, std=.02)
-
+        self.head = nn.Sequential(*self.head)
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -131,12 +131,13 @@ class DrugVQA(nn.Module):
         outputs, self.lstm_hidden_state = self.lstm(
             smile_embed, self.lstm_hidden_state)
         avg_sentence_embed = self.smile_attention(outputs)
-
         pic = self.conv(x2)
         pic = self.bn(pic)
         pic = self.contact_map_act(pic)
+
         pic = self.res_block1(pic)
         pic = self.res_block2(pic)
+
         pic_emb = torch.mean(pic, 2)
         pic_emb = pic_emb.permute(0, 2, 1)
         avg_seq_embed = self.seq_attention(pic_emb)
