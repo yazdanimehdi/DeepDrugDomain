@@ -53,12 +53,3 @@ We welcome contributions to DeepDrugDomain! Please check out our [Contribution G
 
 ### Citation
 We don't have a paper yet!
-<!-- If you use DeepDrugDomain in your research, please cite:
-```bibtex
-@article{deepdrugdomain2024,
-  title={From Data to Discovery: The DeepDrugDomain Framework for Predicting Drug-Target Interactions and Affinity},
-  author={...},
-  journal={...},
-  year={2024}
-} -->
-```
