@@ -1,3 +1,8 @@
+"""
+Reference:
+- Zheng, S., Li, Y., Chen, S. et al. Publisher Correction: Predicting drug–protein interaction using quasi-visual question answering system. Nat Mach Intell 2, 551 (2020). https://doi.org/10.1038/s42256-020-0224-z
+"""
+
 from functools import partial
 from typing import Optional, Sequence
 

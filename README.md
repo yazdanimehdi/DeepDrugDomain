@@ -25,24 +25,38 @@ pip install -r requirements.txt
 
 ```python
 import deepdrugdomain as ddd
-dataset = ddd.data.DatasetFactory.create("human",
-                                    file_paths="data/human/",
-                                    drug_preprocess_type=[("smiles_to_embedding", {
-                                                           "max_sequence_length": 247})],
-                                    protein_preprocess_type=[
-                                        ("contact_map_from_pdb", {
-                                         "pdb_path": "data/human/pdb/"})
-                                    ],
-                                    protein_attributes=[
-                                        "pdb_id"],
-                                    in_memory_preprocessing_protein=True,
-                                    drug_attributes=["SMILES"],
-                                    online_preprocessing_protein=[False],)
+dataset = ddd.data.DatasetFactory.create("drugbank",
+                                    file_paths="data/drugbank/",
+                                     drug_preprocess_type=("dgl_graph_from_smile",
+                                     {"fragment": False, "max_block": 6, "max_sr": 8, "min_frag_atom": 1}),
+                                     drug_attributes="SMILE",
+                                    online_preprocessing_drug=False,
+                                    in_memory_preprocessing_drug=True,
+                                    protein_preprocess_type=(
+                                        "dgl_graph_from_protein_pocket", {"pdb_path": "data/pdb/", "protein_size_limit": 10000}),
+                                    protein_attributes="pdb_id",
+                                    online_preprocessing_protein=False,
+                                    in_memory_preprocessing_protein=False,
+                                    label_attributes="Label",
+                                    save_directory="data/drugbank/",
+                                    threads=8
+    )
 
-datasets = dataset(split_method="cold_split",
-                   entities="SMILES", frac=[0.8, 0.1, 0.1])
+datasets = dataset(split_method="random_split", frac=[0.8, 0.1, 0.1])
+collate_fn = ddd.data.CollateFactory.create("binding_graph_smile_graph")
+data_loader_train = DataLoader(datasets[0], batch_size=32, shuffle=True, num_workers=4, pin_memory=True,
+                                collate_fn=collate_fn, drop_last=True)
 
-model = ddd.models.ModelFactory.create("drugvqa")
+data_loader_val = DataLoader(datasets[1], drop_last=False, batch_size=32,
+                              num_workers=4, pin_memory=False, collate_fn=collate_fn)
+data_loader_test = DataLoader(datasets[2], drop_last=False, batch_size=32, collate_fn=collate_fn,
+                              num_workers=4, pin_memory=False)
+model = ddd.models.ModelFactory.create("attentionsitedti")
+optimizer = ddd.optimizers.OptimizerFactory.create(
+    "adamw", model.parameters(), lr=1e-4, weight_decay=0.03)
+scheduler = ddd.schedulers.SchedulerFactory.create("cosine", optimizer)
+device = torch.device("cpu")
+model.to(device)
 ```
 
 ### Documentation
