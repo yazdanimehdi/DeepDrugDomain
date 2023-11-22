@@ -39,10 +39,10 @@ dataset = ddd.data.DatasetFactory.create("human",
                                     drug_attributes=["SMILES"],
                                     online_preprocessing_protein=[False],)
 
-    datasets = dataset(split_method="cold_split",
-                       entities="SMILES", frac=[0.8, 0.1, 0.1])
+datasets = dataset(split_method="cold_split",
+                   entities="SMILES", frac=[0.8, 0.1, 0.1])
 
-    model = ddd.models.ModelFactory.create("drugvqa")
+model = ddd.models.ModelFactory.create("drugvqa")
 ```
 
 ### Documentation
