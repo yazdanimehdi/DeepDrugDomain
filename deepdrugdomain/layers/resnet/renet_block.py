@@ -61,7 +61,7 @@ class BasicBlock(nn.Module):
             inplanes, first_planes, kernel_size=kernel_size_1, stride=stride_1 if use_aa else stride, padding=first_dilation, bias=False)
         self.bn1 = LayerFactory.create(norm_layer, first_planes)
         self.drop_block = drop_block() if drop_block is not None else nn.Identity()
-        self.act1 = ActivationFactory.create(act_layer, inplace=True)
+        self.act1 = ActivationFactory.create(act_layer)
         self.aa = create_aa(aa_layer, channels=first_planes,
                             stride=stride, enable=use_aa)
         self.conv2 = nn.Conv2d(
@@ -69,7 +69,7 @@ class BasicBlock(nn.Module):
         self.bn2 = LayerFactory.create(norm_layer, outplanes)
         self.se = LayerFactory.create(
             attn_layer, outplanes, **attn_layer_kwargs) if attn_layer else None
-        self.act2 = ActivationFactory.create(act_layer, inplace=True)
+        self.act2 = ActivationFactory.create(act_layer)
         self.downsample = LayerFactory.create(
             downsample, inplanes, outplanes, stride, **downsample_kwargs) if downsample else None
         self.stride = stride

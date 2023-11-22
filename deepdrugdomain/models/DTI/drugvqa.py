@@ -99,8 +99,8 @@ class DrugVQA(nn.Module):
             attention_layers_seq, **attention_layers_seq_kwargs)
         # Prediction layer
         self.head = []
-        neuron_list = [self.lstm_hid_dim * lstm_layers +
-                       contact_map_out_channels] + list(head_dims)
+        neuron_list = [38] + list(head_dims)
+        # [self.lstm_hid_dim * lstm_layers + contact_map_out_channels] +
 
         for item in range(len(neuron_list) - 1):
             self.head.append(nn.Dropout(head_dropout_rate))
@@ -128,17 +128,19 @@ class DrugVQA(nn.Module):
 
     def forward(self, x1, x2):
         smile_embed = self.embeddings(x1)
-        outputs, self.lstm_hidden_state = self.lstm(
+        outputs, _ = self.lstm(
             smile_embed, self.lstm_hidden_state)
         avg_sentence_embed = self.smile_attention(outputs)
         pic = self.conv(x2)
         pic = self.bn(pic)
+        avg_sentence_embed = torch.mean(smile_embed, 1)
         pic = self.contact_map_act(pic)
 
         pic = self.res_block1(pic)
         pic = self.res_block2(pic)
 
         pic_emb = torch.mean(pic, 2)
+
         pic_emb = pic_emb.permute(0, 2, 1)
         avg_seq_embed = self.seq_attention(pic_emb)
 

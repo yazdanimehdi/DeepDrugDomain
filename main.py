@@ -82,7 +82,6 @@ def main(args):
 
     datasets = dataset(split_method="cold_split",
                        entities="SMILES", frac=[0.8, 0.1, 0.1])
-    print(datasets[0][0])
 
     model = ModelFactory.create("drugvqa")
     # collate_fn = CollateFactory.create("ammvf_collate")
@@ -94,15 +93,13 @@ def main(args):
     data_loader_test = DataLoader(datasets[2], drop_last=False, batch_size=32,
                                   num_workers=4, pin_memory=False)
 
-    criterion = torch.nn.BCELoss()
+    criterion = torch.nn.BCEWithLogitsLoss()
     optimizer = OptimizerFactory.create(
         "adam", model.parameters(), lr=1e-3, weight_decay=1e-4)
     # scheduler = SchedulerFactory.create("cosine", optimizer)
     device = torch.device("cpu")
     model.to(device)
-    # model.to(torch.float64)
     epochs = 200
-
     for epoch in range(epochs):
         losses = []
         accs = []
@@ -120,7 +117,7 @@ def main(args):
                 target = target.to(
                     device).view(-1, 1).to(torch.float)
                 targets.append(target)
-                if batch_idx % 32 == 0:
+                if batch_idx % 1 == 0:
                     out = torch.stack(outs, dim=0).squeeze(1)
                     target = torch.stack(targets, 0).to(
                         device).view(-1, 1).to(torch.float)
@@ -135,6 +132,10 @@ def main(args):
                     losses.append(loss.detach().cpu())
                     outs = []
                     targets = []
+
+                acc_mean = np.array(accs).mean()
+                loss_mean = np.array(losses).mean()
+                tepoch.set_postfix(loss=loss_mean, accuracy=acc_mean)
 
     # scheduler = ExponentialLR(optimizer, gamma=0.9)
     # epochs = 200
