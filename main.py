@@ -80,7 +80,10 @@ def main(args):
                                     drug_attributes=["SMILES"],
                                     online_preprocessing_protein=[False],)
 
-    datasets = dataset(random_split=[0.8, 0.1, 0.1])
+    datasets = dataset(split_method="cold_split",
+                       entities="SMILES", frac=[0.8, 0.1, 0.1])
+    print(datasets[0][0])
+
     model = ModelFactory.create("drugvqa")
     # collate_fn = CollateFactory.create("ammvf_collate")
     data_loader_train = DataLoader(datasets[0], batch_size=32, shuffle=True, num_workers=0, pin_memory=True,
@@ -90,6 +93,7 @@ def main(args):
                                  num_workers=4, pin_memory=False)
     data_loader_test = DataLoader(datasets[2], drop_last=False, batch_size=32,
                                   num_workers=4, pin_memory=False)
+
     criterion = torch.nn.BCELoss()
     optimizer = OptimizerFactory.create(
         "adam", model.parameters(), lr=1e-3, weight_decay=1e-4)

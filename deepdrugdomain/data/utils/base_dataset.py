@@ -36,13 +36,15 @@ from typing import Dict, Any, Callable, List, Optional, Union, Tuple
 import pandas as pd
 import os
 import json
-from ..utils import ensure_list
+from .dataset_utils import ensure_list
 from tqdm import tqdm
 import requests
 from deepdrugdomain.models.factory import ModelFactory
 from .default_dataset import DrugProteinDataset
 from torch.utils.data import Dataset
 import torch
+import pickle
+from .split import random_split, cold_split, scaffold_split
 
 
 class AbstractDataset(ABC):
@@ -291,7 +293,56 @@ class CustomDataset(AbstractDataset):
         """
         return pd.read_csv(file_path, sep=separator)
 
-    def __call__(self, random_split: Optional[List[int]] = None, return_df: Optional[bool] = False) -> Union[Dataset, pd.DataFrame]:
+    def _create_dataset(self, df: List[pd.DataFrame]) -> Dataset:
+        datasets = []
+        for i, df in enumerate(df):
+            if len(df) == 0:
+                dataset.append(None)
+
+            else:
+                dataset = DrugProteinDataset(df,
+                                             self.drug_preprocess_type, self.drug_attributes, self.online_preprocessing_drug, self.in_memory_preprocessing_drug,
+                                             self.protein_preprocess_type, self.protein_attributes, self.online_preprocessing_protein, self.in_memory_preprocessing_protein,
+                                             self.label_attributes, self.label_preprocess_type, self.online_preprocessing_label, self.in_memory_preprocessing_label,
+                                             self.save_directory,
+                                             self.threads)
+            datasets.append(dataset)
+
+        return datasets
+
+    def _fold(self, df: pd.DataFrame, seed: int, k_fold: int, save_fold: bool = False, load_fold: Optional[str] = None, return_df: Optional[bool] = False) -> Union[Tuple[List[Dataset], List[Dataset]], Tuple[List[pd.DataFrame], List[pd.DataFrame]]]:
+        from sklearn.model_selection import KFold
+        folds_train = []
+        folds_test = []
+        if load_fold:
+            assert os.path.exists(
+                load_fold), f"Error: Fold file {load_fold} not found"
+            folds = pickle.load(open(load_fold, 'rb'))
+
+        else:
+            folds = k_fold
+            kf = KFold(n_splits=k_fold, shuffle=True, random_state=seed)
+            folds = kf.split(df)
+            if save_fold:
+                save_directory = os.path.dirname(
+                    os.path.abspath(self.file_paths[0]))
+                pickle.dump(folds, open(os.path.join(
+                    save_directory, 'folds.pkl'), 'wb'))
+
+        for i, (train_index, test_index) in enumerate(folds):
+            df_train, df_test = df.iloc[train_index], df.iloc[test_index]
+            if return_df:
+                folds_train.append(df_train)
+                folds_test.append(df_test)
+            else:
+                dataset_train, dataset_test = self._create_dataset(
+                    [df_train, df_test])
+                folds_train.append(dataset_train)
+                folds_test.append(dataset_test)
+
+        return folds_train, folds_test
+
+    def __call__(self, split_method: Optional[str] = None, entities: Optional[Union[str, List[str]]] = None, frac: Optional[List[float]] = [0.8, 0.1, 0.1], k_fold: Optional[int] = 3, save_fold: bool = False, load_fold: Optional[str] = None, return_df: Optional[bool] = False, sample: Optional[float] = None, seed: int = 4) -> Union[Dataset, pd.DataFrame, List[Dataset], List[pd.DataFrame]]:
         """
             When called, the method creates a DrugProteinDataset from the loaded data and optionally splits it into training, 
             validation, and test datasets based on the provided proportions in 'random_split'.
@@ -303,15 +354,63 @@ class CustomDataset(AbstractDataset):
             Returns:
                 Union[Dataset, Tuple[Dataset, ...]]: The complete dataset or a tuple containing split datasets.
         """
+        assert split_method in [
+            None, "random_split", "cold_split", "scaffold_split", "k_fold"], "Error: split_method must be None, 'random_split', 'cold_split', 'scaffold_split', or 'k_fold'"
+
         df = self.load()
+        if sample:
+            df = df.sample(frac=sample)
+
+        if self.drug_attributes != [None]:
+            for attr in self.drug_attributes:
+                assert attr in df.columns, f"Error: Drug attribute {attr} not found in dataset"
+
+        if self.protein_attributes != [None]:
+            for attr in self.protein_attributes:
+                assert attr in df.columns, f"Error: Protein attribute {attr} not found in dataset"
+
+        if self.label_attributes != [None]:
+            for attr in self.label_attributes:
+                assert attr in df.columns, f"Error: Label attribute {attr} not found in dataset"
+
+        if split_method == "k_fold":
+            assert k_fold is not None, "Error: k_fold must be provided"
+            return self._fold(df, seed, k_fold, save_fold, load_fold, return_df)
+
+        if split_method == "random_split":
+            assert frac is not None, "Error: frac must be provided"
+            df_train, df_val, df_test = random_split(df, seed, frac)
+            if return_df:
+                return df_train, df_val, df_test
+            else:
+                return self._create_dataset([df_train, df_val, df_test])
+
+        if split_method == "cold_split":
+            assert entities is not None, "Error: entities must be provided"
+            assert frac is not None, "Error: frac must be provided"
+            entities = ensure_list(entities)
+            for entity in entities:
+                assert entity in df.columns, f"Error: attribute {entity} not found in dataset"
+
+            df_train, df_val, df_test = cold_split(df, seed, frac, entities)
+
+        if split_method == "scaffold_split":
+            assert entities is not None, "Error: entities must be provided"
+            assert frac is not None, "Error: frac must be provided"
+            assert isinstance(
+                entities, str), "Error: entities must be a single string"
+            assert entities in df.columns, f"Error: attribute {entities} not found in dataset"
+            df_train, df_val, df_test = scaffold_split(
+                df, seed, frac, entities)
+
+        if split_method is None:
+            if return_df:
+                return df
+            else:
+                dataset = self._create_dataset([df])
+                return dataset[0]
 
         if return_df:
-            return df
-        dataset = DrugProteinDataset(df.head(1000),
-                                     self.drug_preprocess_type, self.drug_attributes, self.online_preprocessing_drug, self.in_memory_preprocessing_drug,
-                                     self.protein_preprocess_type, self.protein_attributes, self.online_preprocessing_protein, self.in_memory_preprocessing_protein,
-                                     self.label_attributes, self.label_preprocess_type, self.online_preprocessing_label, self.in_memory_preprocessing_label,
-                                     self.save_directory,
-                                     self.threads)
-
-        return torch.utils.data.random_split(dataset, random_split) if random_split else dataset
+            return df_train, df_val, df_test
+        else:
+            return self._create_dataset([df_train, df_val, df_test])

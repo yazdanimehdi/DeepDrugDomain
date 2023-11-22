@@ -1,6 +1,6 @@
 import os
 from typing import Dict, List, Optional, Tuple, Union
-from ..base_dataset import CustomDataset
+from deepdrugdomain.data.utils import CustomDataset
 from ..factory import DatasetFactory
 
 

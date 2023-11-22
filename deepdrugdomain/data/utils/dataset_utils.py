@@ -2,6 +2,8 @@ import os
 import sys
 from typing import Any, List, Union, Dict, Tuple
 
+import torch
+
 
 def estimate_sample_size(sample: Any) -> int:
     """
@@ -102,7 +104,7 @@ def assert_unique_combinations(list1: list, list2: list, list3: list) -> None:
 
 def get_processed_data(online: bool, mapping: Tuple[str, Any], pre_process, in_mem, row_data):
     if pre_process is None:
-        return row_data
+        return torch.tensor([row_data])
 
     if online:
         return pre_process.preprocess(row_data)

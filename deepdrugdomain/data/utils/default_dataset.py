@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset
 from ..preprocessing import PreprocessorFactory, BasePreprocessor
 from typing import List, Any, Optional, Dict, Union, Tuple
-from ..utils import ensure_list, get_processed_data
+from .dataset_utils import ensure_list, get_processed_data
 
 
 class DrugProteinDataset(Dataset):
@@ -142,6 +142,9 @@ class DrugProteinDataset(Dataset):
         mapping = []
 
         for online, in_memory, preprocess, attribute in all_data:
+            if attribute is None:
+                mapping.append((None, None))
+                continue
 
             data = self.data[attribute].unique().tolist()
             if online:
@@ -171,6 +174,10 @@ class DrugProteinDataset(Dataset):
         mapping = []
 
         for online, in_memory, preprocess, attribute in all_data:
+            if attribute is None:
+                mapping.append((None, None))
+                continue
+
             data = self.data[attribute].unique().tolist()
             if online:
                 if preprocess is not None:
@@ -297,11 +304,13 @@ class DrugProteinDataset(Dataset):
             self.in_mem_protein + self.in_mem_drug
         )
 
-        data = [
-            get_processed_data(online, mapping, pre_process,
-                               in_mem, self.data.iloc[index][mapping[0]])
-            for online, mapping, pre_process, in_mem in combined_attributes
-        ]
+        data = []
+        for online, mapping, pre_process, in_mem in combined_attributes:
+            if mapping[0] is None:
+                continue
+            else:
+                data.append(get_processed_data(online, mapping, pre_process,
+                                               in_mem, self.data.iloc[index][mapping[0]]))
 
         label_attributes = zip(
             self.online_label,
@@ -310,13 +319,17 @@ class DrugProteinDataset(Dataset):
             self.in_mem_label
         )
 
-        y = torch.tensor([
-            get_processed_data(online, mapping, pre_process,
-                               in_mem, self.data.iloc[index][mapping[0]])
-            for online, mapping, pre_process, in_mem in label_attributes
-        ])
+        y = []
+        for online, mapping, pre_process, in_mem in label_attributes:
+            if mapping[0] is None:
+                continue
+            else:
+                y.append(get_processed_data(online, mapping, pre_process,
+                                            in_mem, self.data.iloc[index][mapping[0]]))
 
-        # Append label
-        data.append(y)
+        if len(y) > 0:
+            for item in y:
+                # Append labels
+                data.append(item)
 
         return data

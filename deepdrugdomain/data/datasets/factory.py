@@ -1,5 +1,5 @@
 from typing import Dict, Tuple, Type, TypeVar, List
-from .base_dataset import AbstractDataset
+from ..utils.base_dataset import AbstractDataset
 from deepdrugdomain.utils import BaseFactory
 
 T = TypeVar('T', bound=AbstractDataset)
