@@ -133,6 +133,7 @@ class CustomDataset(AbstractDataset):
                                                      str], List[Dict[str, str]]]] = None,
                  separators: Union[List[str], str] = ',',
                  associated_model: Optional[str] = None,
+                 df: Optional[pd.DataFrame] = None,
                  threads: int = 4) -> None:
         super().__init__()
         """
@@ -163,7 +164,7 @@ class CustomDataset(AbstractDataset):
         self.in_memory_preprocessing_label = ensure_list(
             in_memory_preprocessing_label)
         self.label_preprocess_type = ensure_list(label_preprocess_type)
-
+        self.df = df
         if associated_model:
             self._load_model_config(associated_model)
 
@@ -357,7 +358,11 @@ class CustomDataset(AbstractDataset):
         assert split_method in [
             None, "random_split", "cold_split", "scaffold_split", "k_fold"], "Error: split_method must be None, 'random_split', 'cold_split', 'scaffold_split', or 'k_fold'"
 
-        df = self.load()
+        if self.df is None:
+            df = self.load()
+        else:
+            df = self.df
+
         if sample:
             df = df.sample(frac=sample)
 
