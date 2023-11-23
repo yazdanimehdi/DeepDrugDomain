@@ -66,27 +66,17 @@ def main(args):
     torch.manual_seed(seed)
     np.random.seed(seed)
     feat = CanonicalAtomFeaturizer()
-    dataset = CustomDataset(
-        file_paths=["data/drugbank/DrugBank.txt",
-                    "data/drugbank/drugbankSeqPdb.txt"],
-        common_columns={"sequence": "TargetSequence"},
-        separators=[" ", ","],
-        drug_preprocess_type=("dgl_graph_from_smile",
-                              {"fragment": False, "max_block": 6, "max_sr": 8, "min_frag_atom": 1}),
-        drug_attributes="SMILE",
-        online_preprocessing_drug=False,
-        in_memory_preprocessing_drug=True,
-        protein_preprocess_type=(
-            "dgl_graph_from_protein_pocket", {"pdb_path": "data/pdb/", "protein_size_limit": 10000}),
-        protein_attributes="pdb_id",
-        online_preprocessing_protein=False,
-        in_memory_preprocessing_protein=False,
-        label_attributes="Label",
-        save_directory="data/drugbank/",
-        threads=8
-    )
-    model, datasets, collate_fn = ddd.utils.initialize_training_environment(
-        "attentionsitedti", "drugbank", [0.8, 0.1, 0.1])
+    preprocess_drug = ddd.data.PreprocessingObject(attribute="SMILES", preprocessing_type="smile_to_dgl_graph", preprocessing_settings={
+                                                   "fragment": False, "node_featurizer": feat}, in_memory=True, online=False)
+    preprocess_protein = ddd.data.PreprocessingObject(attribute="pdb_id", preprocessing_type="protein_pockets_to_dgl_graph", preprocessing_settings={
+                                                      "pdb_path": "data/pdb/", "protein_size_limit": 10000}, in_memory=False, online=False)
+    preprocess_label = ddd.data.PreprocessingObject(
+        attribute="Label", preprocessing_type="interaction_to_binary", preprocessing_settings={}, in_memory=True, online=True)
+    preprocesses = preprocess_drug + preprocess_protein + preprocess_label
+    dataset = ddd.data.DatasetFactory.create(
+        "human", file_paths="data/human/", preprocesses=preprocesses)
+    datasets = dataset(split_method="random_split",
+                       frac=[0.8, 0.1, 0.1], seed=seed, sample=0.01)
     collate_fn = CollateFactory.create("binding_graph_smile_graph")
     data_loader_train = DataLoader(datasets[0], batch_size=32, shuffle=True, num_workers=4, pin_memory=True,
                                    collate_fn=collate_fn, drop_last=True)
@@ -102,112 +92,49 @@ def main(args):
     scheduler = SchedulerFactory.create("cosine", optimizer)
     device = torch.device("cpu")
     model.to(device)
-
-    # collate_fn = CollateFactory.create("ammvf_collate")
-    data_loader_train = DataLoader(datasets[0], batch_size=32, shuffle=True, num_workers=0, pin_memory=True,
-                                   drop_last=True)
-
-    data_loader_val = DataLoader(datasets[1], drop_last=False, batch_size=32,
-                                 num_workers=4, pin_memory=False)
-    data_loader_test = DataLoader(datasets[2], drop_last=False, batch_size=32,
-                                  num_workers=4, pin_memory=False)
-
-    criterion = torch.nn.BCEWithLogitsLoss()
-    optimizer = OptimizerFactory.create(
-        "adam", model.parameters(), lr=1e-3, weight_decay=1e-4)
-    # scheduler = SchedulerFactory.create("cosine", optimizer)
-    device = torch.device("cpu")
-    model.to(device)
     epochs = 200
+    accum_iter = 1
     for epoch in range(epochs):
         losses = []
         accs = []
         model.train()
-        with tqdm(datasets[0]) as tepoch:
+        with tqdm(data_loader_train) as tepoch:
             tepoch.set_description(f"Epoch {epoch}")
-            for batch_idx, (pic, smile, target) in enumerate(tepoch):
+            for batch_idx, (drug, protein, target) in enumerate(tepoch):
                 outs = []
-                targets = []
-                smile = smile.to(device)
-                smile = smile.unsqueeze(0).to(torch.long)
-                pic = pic.unsqueeze(0).unsqueeze(0).to(device)
-                out = torch.sigmoid(model(smile, pic))
-                outs.append(out)
+                for item in range(len(drug)):
+                    d = drug[item].to(device)
+                    p = protein[item].to(device)
+                    out = model(d, p)
+                    outs.append(out)
+
+                out = torch.stack(outs, dim=0).squeeze(1)
+
                 target = target.to(
                     device).view(-1, 1).to(torch.float)
-                targets.append(target)
-                if batch_idx % 1 == 0:
-                    out = torch.stack(outs, dim=0).squeeze(1)
-                    target = torch.stack(targets, 0).to(
-                        device).view(-1, 1).to(torch.float)
-                    loss = criterion(out, target)
-                    loss.backward()
+                loss = criterion(out, target)
+                matches = [torch.argmax(i) == j
+                           for i, j in zip(out, target)]
+                acc = matches.count(True) / len(matches)
+                accs.append(acc)
+                losses.append(loss.detach().cpu())
+                loss.backward()
+                if ((batch_idx + 1) % accum_iter == 0) or (batch_idx + 1 == len(data_loader_train)):
                     optimizer.step()
                     optimizer.zero_grad()
-                    loss = criterion(out, target)
-                    matches = [torch.round(out) == torch.round(target)]
-                    acc = matches.count(True)
-                    accs.append(acc)
-                    losses.append(loss.detach().cpu())
-                    outs = []
-                    targets = []
-
                 acc_mean = np.array(accs).mean()
                 loss_mean = np.array(losses).mean()
                 tepoch.set_postfix(loss=loss_mean, accuracy=acc_mean)
-
-    # scheduler = ExponentialLR(optimizer, gamma=0.9)
-    # epochs = 200
-    # accum_iter = 1
-    # for epoch in range(epochs):
-    #     losses = []
-    #     accs = []
-    #     model.train()
-    #     with tqdm(data_loader_train) as tepoch:
-    #         tepoch.set_description(f"Epoch {epoch}")
-    #         for batch_idx, (inp, target) in enumerate(tepoch):
-    #             outs = []
-    #             targets = []
-    #             for item in range(len(inp[0])):
-    #                 protein1 = inp[0][item].to(device)
-    #                 protein1 = protein1.to(torch.float64)
-    #                 protein2 = inp[1][item].to(device)
-    #                 compound1 = inp[2][item].to(device)
-    #                 compound1 = compound1.to(torch.float64)
-    #                 g = inp[3][item].to(device)
-    #                 out = model(protein1, protein2, compound1, g)
-
-    #                 # out = model(inpu)
-    #                 outs.append(out)
-    #                 targets.append(target[item])
-
-    #             out = torch.stack(outs, dim=0).squeeze(1)
-
-    #             target = torch.stack(targets, 0).to(
-    #                 device).view(-1).to(torch.long)
-    #             loss = criterion(out, target)
-    #             matches = [torch.argmax(i) == j
-    #                        for i, j in zip(out, target)]
-    #             acc = matches.count(True) / len(matches)
-    #             accs.append(acc)
-    #             losses.append(loss.detach().cpu())
-    #             loss.backward()
-    #             if ((batch_idx + 1) % accum_iter == 0) or (batch_idx + 1 == len(data_loader_train)):
-    #                 optimizer.step()
-    #                 optimizer.zero_grad()
-    #             acc_mean = np.array(accs).mean()
-    #             loss_mean = np.array(losses).mean()
-    #             tepoch.set_postfix(loss=loss_mean, accuracy=acc_mean)
-    #     # scheduler.step()
-    #     # test_func(model, data_loader_val, device)
-    #     # test_func(model, data_loader_test, device)
-    #     fn = "last_checkpoint_celegans.pt"
-    #     info_dict = {
-    #         'epoch': epoch,
-    #         'net_state': model.state_dict(),
-    #         'optimizer_state': optimizer.state_dict()
-    #     }
-    #     torch.save(info_dict, fn)
+        # scheduler.step()
+        # test_func(model, data_loader_val, device)
+        # test_func(model, data_loader_test, device)
+        # fn = "last_checkpoint_celegans.pt"
+        # info_dict = {
+        #     'epoch': epoch,
+        #     'net_state': model.state_dict(),
+        #     'optimizer_state': optimizer.state_dict()
+        # }
+        # torch.save(info_dict, fn)
 
 
 if __name__ == '__main__':

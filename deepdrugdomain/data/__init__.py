@@ -2,3 +2,4 @@ from .preprocessing import PreprocessorFactory, AbstractBasePreprocessor, BasePr
 from .collate import CollateFactory, BaseCollate
 from .utils import CustomDataset, DrugProteinDataset
 from .datasets import DatasetFactory
+from .utils import PreprocessingObject

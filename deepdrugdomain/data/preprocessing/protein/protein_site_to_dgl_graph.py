@@ -125,7 +125,7 @@ def _get_constructed_graphs_for_pockets(pockets: list, m: Chem.Mol, am: np.ndarr
     return constructed_graphs
 
 
-@PreprocessorFactory.register("dgl_graph_from_protein_pocket")
+@PreprocessorFactory.register("protein_pockets_to_dgl_graph")
 class GraphFromPocketPreprocessor(BasePreprocessor):
     """
     Preprocessor to transform protein data into a graph representation using DGL.
@@ -156,8 +156,12 @@ class GraphFromPocketPreprocessor(BasePreprocessor):
         - dgl.DGLGraph: A DGL graph representation of the protein's binding pockets or None if an exception occurs.
         """
         # Convert protein PDB identifier to lowercase
-        pdb = data.lower()
 
+        if not isinstance(data, str):
+            return None
+        pdb = data.lower()
+        if len(pdb) != 4:
+            pdb = pdb[:4]
         # Ensure required keys are present in arguments
         required_keys = ["pdb_path", "protein_size_limit"]
         for item in required_keys:

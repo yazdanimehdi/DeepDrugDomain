@@ -1,6 +1,7 @@
 import os
 from typing import Dict, List, Optional, Tuple, Union
 from deepdrugdomain.data.utils import CustomDataset
+from deepdrugdomain.data.utils.data_struct import PreprocessingObject
 from ..factory import DatasetFactory
 
 
@@ -15,27 +16,7 @@ class DrugBankDataset(CustomDataset):
 
     Parameters:
         file_paths (str): Directory path where data files are stored or to be downloaded.
-        drug_preprocess_type (Union[Tuple[str, Dict], List[Tuple[str, Dict]], None]): Preprocessing configuration(s) 
-            for drug data.
-        protein_preprocess_type (Union[Tuple[str, Dict], List[Tuple[str, Dict]], None]): Preprocessing configuration(s) 
-            for protein data.
-        protein_attributes (Union[List[str], str]): Attributes to be considered for proteins.
-        in_memory_preprocessing_protein (Union[List[bool], bool]): Flags indicating whether to preprocess protein data 
-            in memory.
-        drug_attributes (Union[List[str], str], optional): Attributes to be considered for drugs, defaults to "SMILES".
-        online_preprocessing_drug (Union[List[bool], bool], optional): Flags indicating whether to preprocess drug data 
-            online (on-the-fly).
-        in_memory_preprocessing_drug (Union[List[bool], bool], optional): Flags indicating whether to preprocess drug 
-            data in memory.
-        online_preprocessing_protein (Union[List[bool], bool], optional): Flags indicating whether to preprocess protein 
-            data online (on-the-fly).
-        label_attributes (Union[List[str], str], optional): Attributes for the labels.
-        label_preprocess_type (Union[Tuple[str, Dict], List[Tuple[str, Dict]], None], optional): Preprocessing 
-            configuration(s) for label data.
-        online_preprocessing_label (Union[List[bool], bool], optional): Flags indicating whether to preprocess label 
-            data online.
-        in_memory_preprocessing_label (Union[List[bool], bool], optional): Flags indicating whether to preprocess label 
-            data in memory.
+        preprocesses (PreprocessingObject): Preprocessing configuration(s) for drug, protein, and label data.
         save_directory (Optional[str]): The directory to save processed files, defaults to `file_paths` if None.
         urls (Optional[Union[List[str], str]]): URLs to download the dataset files if not present at `file_paths`.
         common_columns (Optional[Union[Dict[str, str], List[Dict[str, str]]]]): Mapping of common column names to the 
@@ -62,19 +43,7 @@ class DrugBankDataset(CustomDataset):
     """
 
     def __init__(self, file_paths: str,
-                 drug_preprocess_type: Tuple[str, Dict] | List[Tuple[str, Dict] | None] | None,
-                 protein_preprocess_type: Tuple[str, Dict] | List[Tuple[str, Dict] | None] | None,
-                 protein_attributes: List[str] | str,
-                 in_memory_preprocessing_protein: List[bool] | bool,
-                 drug_attributes: List[str] | str = "SMILES",
-                 online_preprocessing_drug: List[bool] | bool = False,
-                 in_memory_preprocessing_drug: List[bool] | bool = True,
-                 online_preprocessing_protein: List[bool] | bool = False,
-                 label_attributes: List[str] | str = 'Label',
-                 label_preprocess_type: Tuple[str,
-                                              Dict] | List[Tuple[str, Dict] | None] | None = None,
-                 online_preprocessing_label: List[bool] | bool = True,
-                 in_memory_preprocessing_label: List[bool] | bool = True,
+                 preprocesses: PreprocessingObject,
                  save_directory: str | None = None,
                  urls: List[str] | str | None = ['https://github.com/yazdanimehdi/DeepDrugDomain/raw/main/data/drugbank/DrugBank.txt',
                                                  'https://github.com/yazdanimehdi/DeepDrugDomain/raw/main/data/drugbank/drugbankSeqPdb.txt'],
@@ -88,12 +57,11 @@ class DrugBankDataset(CustomDataset):
         drugbank_data_path = os.path.join(self.file_paths, 'DrugBank.txt')
         drugbankSeqPdb_path = os.path.join(
             self.file_paths, 'drugbankSeqPdb.txt')
+
         file_paths = [drugbank_data_path, drugbankSeqPdb_path]
-
-        super().__init__(file_paths, drug_preprocess_type, drug_attributes, online_preprocessing_drug, in_memory_preprocessing_drug, protein_preprocess_type, protein_attributes, online_preprocessing_protein,
-                         in_memory_preprocessing_protein, label_attributes, label_preprocess_type, online_preprocessing_label, in_memory_preprocessing_label, save_directory, urls, common_columns, separators, associated_model, threads)
-
         save_directory = self.file_paths if save_directory is None else save_directory
+        super().__init__(file_paths, preprocesses, save_directory, urls,
+                         common_columns, separators, associated_model, None, threads)
 
         if not os.path.exists(drugbank_data_path) or not os.path.exists(drugbankSeqPdb_path):
             self.download()

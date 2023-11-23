@@ -4,6 +4,8 @@ import os
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
+
+from .data_struct import PreprocessingObject
 from ..preprocessing import PreprocessorFactory, BasePreprocessor
 from typing import List, Any, Optional, Dict, Union, Tuple
 from .dataset_utils import ensure_list, get_processed_data
@@ -35,23 +37,7 @@ class DrugProteinDataset(Dataset):
 
     def __init__(self,
                  data: pd.DataFrame,
-                 drug_preprocess_type: Union[Union[Tuple[str, Dict], None], List[Union[Tuple[str, Dict], None]]],
-                 drug_attributes: Union[List[str], str],
-                 online_preprocessing_drug: Union[List[bool], bool],
-                 in_memory_preprocessing_drug: Union[List[bool], bool],
-
-                 protein_preprocess_type: Union[Union[Tuple[str, Dict], None], List[Union[Tuple[str, Dict], None]]],
-                 protein_attributes: Union[List[str], str],
-                 online_preprocessing_protein: Union[List[bool], bool],
-                 in_memory_preprocessing_protein: Union[List[bool], bool],
-
-                 label_attributes: Union[List[str], str],
-                 label_preprocess_type: Union[Union[Tuple[str, Dict],
-                                                    None], List[Union[Tuple[str, Dict], None]]] = None,
-                 online_preprocessing_label: Union[List[bool], bool] = True,
-                 in_memory_preprocessing_label: Union[List[bool], bool] = True,
-
-
+                 preprocesses: PreprocessingObject,
                  save_directory: Optional[str] = None,
                  threads: int = 4) -> None:
         """
@@ -71,109 +57,18 @@ class DrugProteinDataset(Dataset):
         """
 
         self.data = data
-
-        self.drug_preprocess_type = [x if x else (
-            None, {}) for x in ensure_list(drug_preprocess_type)]
-        self.drug_attributes = ensure_list(drug_attributes)
-        self.online_drug = ensure_list(online_preprocessing_drug)
-        self.in_mem_drug = ensure_list(in_memory_preprocessing_drug)
-        self.online_drug = [self.online_drug[0] for _ in range(len(self.drug_preprocess_type))] if len(
-            self.online_drug) == 1 else online_preprocessing_drug
-
-        self.in_mem_drug = [self.in_mem_drug[0] for _ in range(len(self.drug_preprocess_type))] if len(
-            self.in_mem_drug) == 1 else self.in_mem_drug
-
-        self.drug_preprocessors = [PreprocessorFactory.create(i, **kw) for i, kw in
-                                   self.drug_preprocess_type]
-
-        self.protein_preprocess_type = [x if x else (
-            None, {}) for x in ensure_list(protein_preprocess_type)]
-
-        self.protein_attributes = ensure_list(protein_attributes)
-        self.online_protein = ensure_list(online_preprocessing_protein)
-        self.in_mem_protein = ensure_list(in_memory_preprocessing_protein)
-        self.online_protein = [self.online_protein[0] for _ in range(len(self.protein_preprocess_type))] if len(
-            self.online_protein) == 1 else self.online_protein
-
-        self.in_mem_protein = [self.in_mem_protein[0] for _ in range(len(self.protein_preprocess_type))] if len(
-            self.in_mem_protein) == 1 else self.in_mem_protein
-
-        self.protein_preprocessor = [PreprocessorFactory.create(i, **kw) for i, kw in
-                                     self.protein_preprocess_type]
-
-        self.label_preprocess_type = [x if x else (
-            None, {}) for x in ensure_list(label_preprocess_type)]
-        self.label_attributes = ensure_list(label_attributes)
-        self.online_label = ensure_list(online_preprocessing_label)
-        self.in_mem_label = ensure_list(in_memory_preprocessing_label)
-
-        if self.label_preprocess_type == [None, {}]:
-            self.label_preprocess_type = [
-                (None, {})] * len(self.label_attributes)
-
-        self.label_preprocessor = [PreprocessorFactory.create(
-            i, **kw) for i, kw in self.label_preprocess_type]
-
+        self.preprocesses = preprocesses
         self.save_directory = save_directory
         self.threads = threads
 
-        self._validate_lengths()
-
-        self.mapping_drug = self._initialize_preprocesses("drug")
-        self.mapping_protein = self._initialize_preprocesses("protein")
-        self.mapping_label = self._initialize_preprocesses("label")
+        self.mapping = self._initialize_preprocesses()
 
         self._clean_data()
 
-    def _validate_lengths(self) -> None:
-        """
-        Validate that the lengths of the attributes match.
-        """
-        assert len(self.drug_preprocess_type) == len(
-            self.drug_attributes), "You must provide all the required fields for each drug preprocessor"
-        assert len(self.protein_preprocess_type) == len(
-            self.protein_attributes), "You must provide all the required fields for each protein preprocessor"
-        assert len(self.label_preprocess_type) == len(
-            self.label_attributes), "You must provide all the required fields for each label preprocessor"
-
-    def _initialize_label_preprocess(self) -> List[Tuple[Any, Dict[Any, Any]]]:
-        all_data = self._get_data_by_type("label")
-
+    def _initialize_preprocesses(self) -> List[Tuple[Any, Dict[Any, Any]]]:
         mapping = []
 
-        for online, in_memory, preprocess, attribute in all_data:
-            if attribute is None:
-                mapping.append((None, None))
-                continue
-
-            data = self.data[attribute].unique().tolist()
-            if online:
-                mapping.append((attribute, None))
-                continue
-
-            if self._preprocessing_done(preprocess.__class__.__name__, attribute):
-                if not in_memory:
-                    mapping_data = self._load_mapping(preprocess, attribute)
-                else:
-                    path = preprocess.get_saved_path(
-                        self.save_directory, attribute)
-                    mapping_data = preprocess.load_preprocessed_to_memory(path)
-                    _ = self._load_mapping(preprocess, attribute)
-            else:
-                info_dict = preprocess.process_and_get_info(
-                    data, self.save_directory, in_memory, self.threads, attribute)
-                mapping_data = info_dict['mapping_info'] if not in_memory else info_dict['processed_data']
-
-            mapping.append((attribute, mapping_data))
-
-        return mapping
-
-    def _initialize_preprocesses(self, d_type: str) -> List[Tuple[Any, Dict[Any, Any]]]:
-        all_data = self._get_data_by_type(d_type)
-
-        mapping = []
-
-        for online, in_memory, preprocess, attribute in all_data:
+        for attribute, preprocess, in_memory, online in self.preprocesses:
             if attribute is None:
                 mapping.append((None, None))
                 continue
@@ -201,20 +96,6 @@ class DrugProteinDataset(Dataset):
             mapping.append((attribute, mapping_data))
 
         return mapping
-
-    def _get_data_by_type(self, d_type: str) -> List[Tuple]:
-        """Get data attributes and preprocessors based on the data type."""
-        if d_type == "drug":
-            return zip(self.online_drug, self.in_mem_drug, self.drug_preprocessors, self.drug_attributes)
-        elif d_type == "protein":
-            return zip(self.online_protein, self.in_mem_protein, self.protein_preprocessor,
-                       self.protein_attributes)
-        elif d_type == "label":
-            return zip(self.online_label, self.in_mem_label, self.label_preprocessor,
-                       self.label_attributes)
-        else:
-            raise NotImplementedError(
-                f"'{d_type}' is not implemented. Use either 'drug', 'protein' or 'label'.")
 
     def _preprocessing_done(self, preprocess_type: str, attribute: str) -> bool:
         """
@@ -257,17 +138,16 @@ class DrugProteinDataset(Dataset):
         """
         # Combine attributes for easier iteration
         combined_attributes = zip(
-            self.online_drug + self.online_protein,
-            self.mapping_drug + self.mapping_protein,
-            self.drug_preprocessors + self.protein_preprocessor,
-            self.in_mem_drug + self.in_mem_protein
+            self.preprocesses.online,
+            self.mapping,
+            self.preprocesses.preprocessing_type
         )
 
         # This list comprehension iteratively processes each row and checks if any
         # of the processed data results in a 'None' value.
         # It returns a boolean list with 'True' at the positions where 'None' is found.
 
-        for online, mapping, pre_process, in_mem in combined_attributes:
+        for online, mapping, pre_process in combined_attributes:
             none_col_list = pre_process.collect_invalid_data(
                 online, self.data[mapping[0]].unique())
             self.data = self.data[~self.data[mapping[0]].isin(none_col_list)]
@@ -298,10 +178,10 @@ class DrugProteinDataset(Dataset):
 
         # Combine all preprocessing attributes into a single loop
         combined_attributes = zip(
-            self.online_protein + self.online_drug,
-            self.mapping_protein + self.mapping_drug,
-            self.protein_preprocessor + self.drug_preprocessors,
-            self.in_mem_protein + self.in_mem_drug
+            self.preprocesses.online,
+            self.mapping,
+            self.preprocesses.preprocessing_type,
+            self.preprocesses.in_memory
         )
 
         data = []
@@ -311,25 +191,5 @@ class DrugProteinDataset(Dataset):
             else:
                 data.append(get_processed_data(online, mapping, pre_process,
                                                in_mem, self.data.iloc[index][mapping[0]]))
-
-        label_attributes = zip(
-            self.online_label,
-            self.mapping_label,
-            self.label_preprocessor,
-            self.in_mem_label
-        )
-
-        y = []
-        for online, mapping, pre_process, in_mem in label_attributes:
-            if mapping[0] is None:
-                continue
-            else:
-                y.append(get_processed_data(online, mapping, pre_process,
-                                            in_mem, self.data.iloc[index][mapping[0]]))
-
-        if len(y) > 0:
-            for item in y:
-                # Append labels
-                data.append(item)
 
         return data

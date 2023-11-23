@@ -45,6 +45,7 @@ from torch.utils.data import Dataset
 import torch
 import pickle
 from .split import random_split, cold_split, scaffold_split
+from .data_struct import PreprocessingObject
 
 
 class AbstractDataset(ABC):
@@ -111,22 +112,7 @@ class CustomDataset(AbstractDataset):
 
     def __init__(self,
                  file_paths: Union[List[str], str],
-                 drug_preprocess_type: Optional[Union[Union[Tuple[str, Dict], None], List[Union[Tuple[str, Dict], None]]]],
-                 drug_attributes: Union[List[str], str],
-                 online_preprocessing_drug: Union[List[bool], bool],
-                 in_memory_preprocessing_drug: Union[List[bool], bool],
-
-                 protein_preprocess_type: Optional[Union[Union[Tuple[str, Dict], None], List[Union[Tuple[str, Dict], None]]]],
-                 protein_attributes: Union[List[str], str],
-                 online_preprocessing_protein: Union[List[bool], bool],
-                 in_memory_preprocessing_protein: Union[List[bool], bool],
-
-                 label_attributes: Union[List[str], str],
-                 label_preprocess_type: Union[Union[Tuple[str, Dict],
-                                                    None], List[Union[Tuple[str, Dict], None]]] = None,
-                 online_preprocessing_label: Union[List[bool], bool] = True,
-                 in_memory_preprocessing_label: Union[List[bool], bool] = True,
-
+                 preprocesses=PreprocessingObject,
                  save_directory: Optional[str] = None,
                  urls: Optional[Union[List[str], str]] = None,
                  common_columns: Optional[Union[Dict[str,
@@ -144,65 +130,14 @@ class CustomDataset(AbstractDataset):
         self.urls = ensure_list(urls) if urls else None
         self.common_columns = ensure_list(common_columns)
         self.threads = threads
+        self.preprocesses = preprocesses
         self.save_directory = save_directory
         self.separators = ensure_list(separators)
-        self.drug_attributes = ensure_list(drug_attributes)
-        self.protein_attributes = ensure_list(protein_attributes)
-        self.online_preprocessing_drug = ensure_list(
-            online_preprocessing_drug)
-        self.online_preprocessing_protein = ensure_list(
-            online_preprocessing_protein)
-        self.in_memory_preprocessing_drug = ensure_list(
-            in_memory_preprocessing_drug)
-        self.in_memory_preprocessing_protein = ensure_list(
-            in_memory_preprocessing_protein)
-        self.drug_preprocess_type = ensure_list(drug_preprocess_type)
-        self.protein_preprocess_type = ensure_list(protein_preprocess_type)
-        self.label_attributes = ensure_list(label_attributes)
-        self.online_preprocessing_label = ensure_list(
-            online_preprocessing_label)
-        self.in_memory_preprocessing_label = ensure_list(
-            in_memory_preprocessing_label)
-        self.label_preprocess_type = ensure_list(label_preprocess_type)
         self.df = df
         if associated_model:
             self._load_model_config(associated_model)
 
         self._validate_lengths()
-
-    def _load_model_config(self, associated_model, drug_preprocess_type, protein_preprocess_type):
-        """
-            Load model configuration for preprocessing from a specified JSON file. If specific preprocess types for drugs or proteins 
-            are not provided, the method attempts to load these configurations from the model's config file.
-
-            Parameters:
-                associated_model (str): The name of the model whose configuration is to be loaded.
-                drug_preprocess_type (Optional[Union[Tuple[str, Dict], List[Tuple[str, Dict]]]]): Provided drug preprocessing information.
-                protein_preprocess_type (Optional[Union[Tuple[str, Dict], List[Tuple[str, Dict]]]]): Provided protein preprocessing information.
-
-            Raises:
-                ValueError: If the specified model is not registered in the ModelFactory.
-        """
-        if not ModelFactory.is_model_registered(associated_model):
-            raise ValueError("Error: Model not found")
-
-        config_path = os.path.join('configs', f'{associated_model}.json')
-        assert os.path.exists(config_path), "Model config file not found"
-
-        try:
-            with open(config_path, 'r') as config_file:
-                model_configs = json.load(config_file)
-                dataset_config = model_configs.get('dataset', {})
-
-            dataset_config = dataset_config[self.__class__.__name__]
-        except KeyError:
-            raise ValueError(
-                f"Error: Model config file does not contain a dataset configuration for {self.__class__.__name__}")
-
-        self.drug_preprocess_type = drug_preprocess_type or dataset_config.get(
-            'drug_preprocess_type')
-        self.protein_preprocess_type = protein_preprocess_type or dataset_config.get(
-            'protein_preprocess_type')
 
     def _validate_lengths(self):
         """
@@ -301,10 +236,7 @@ class CustomDataset(AbstractDataset):
                 dataset.append(None)
 
             else:
-                dataset = DrugProteinDataset(df,
-                                             self.drug_preprocess_type, self.drug_attributes, self.online_preprocessing_drug, self.in_memory_preprocessing_drug,
-                                             self.protein_preprocess_type, self.protein_attributes, self.online_preprocessing_protein, self.in_memory_preprocessing_protein,
-                                             self.label_attributes, self.label_preprocess_type, self.online_preprocessing_label, self.in_memory_preprocessing_label,
+                dataset = DrugProteinDataset(df, self.preprocesses,
                                              self.save_directory,
                                              self.threads)
             datasets.append(dataset)
@@ -366,17 +298,8 @@ class CustomDataset(AbstractDataset):
         if sample:
             df = df.sample(frac=sample)
 
-        if self.drug_attributes != [None]:
-            for attr in self.drug_attributes:
-                assert attr in df.columns, f"Error: Drug attribute {attr} not found in dataset"
-
-        if self.protein_attributes != [None]:
-            for attr in self.protein_attributes:
-                assert attr in df.columns, f"Error: Protein attribute {attr} not found in dataset"
-
-        if self.label_attributes != [None]:
-            for attr in self.label_attributes:
-                assert attr in df.columns, f"Error: Label attribute {attr} not found in dataset"
+        for attr in self.preprocesses.get_attributes():
+            assert attr in df.columns, f"Error: attribute {attr} not found in dataset"
 
         if split_method == "k_fold":
             assert k_fold is not None, "Error: k_fold must be provided"

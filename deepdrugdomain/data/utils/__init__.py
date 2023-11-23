@@ -3,3 +3,4 @@ from .dataset_utils import estimate_sample_size, assert_unique_combinations, ens
 from .base_dataset import CustomDataset
 from ..datasets.factory import DatasetFactory
 from .default_dataset import DrugProteinDataset
+from .data_struct import PreprocessingObject

@@ -1,7 +1,7 @@
 from typing import Dict, Tuple, Type, TypeVar, List
 from ..utils.base_dataset import AbstractDataset
 from deepdrugdomain.utils import BaseFactory
-
+from ..utils.data_struct import PreprocessingObject
 T = TypeVar('T', bound=AbstractDataset)
 
 
@@ -24,10 +24,7 @@ class DatasetFactory(BaseFactory):
         >>> dataset = DatasetFactory.create(
         ...     'my_dataset',
         ...     file_paths='path/to/data',
-        ...     drug_preprocess_type=('type', {'param': 'value'}),
-        ...     protein_preprocess_type=[('type', {'param': 'value'})],
-        ...     protein_attributes=['attribute1', 'attribute2'],
-        ...     in_memory_preprocessing_protein=True
+        ...     preprocesses=PreprocessingObject()
         ... )
         This example registers a new dataset class 'MyDataset' under the key 'my_dataset' and then instantiates it.
 
@@ -66,10 +63,7 @@ class DatasetFactory(BaseFactory):
     def create(cls,
                key: str,
                file_paths: str,
-               drug_preprocess_type: Tuple[str, Dict] | List[Tuple[str, Dict] | None] | None,
-               protein_preprocess_type: Tuple[str, Dict] | List[Tuple[str, Dict] | None] | None,
-               protein_attributes: List[str] | str,
-               in_memory_preprocessing_protein: List[bool] | bool,
+               preprocesses: PreprocessingObject,
                **kwargs) -> Type[T]:
         """
         Creates an instance of the dataset associated with the given key.
@@ -94,5 +88,5 @@ class DatasetFactory(BaseFactory):
             raise ValueError(f"Key '{key}' not registered.")
 
         dataset_instance = cls._registry[key](
-            file_paths, drug_preprocess_type, protein_preprocess_type, protein_attributes, in_memory_preprocessing_protein, **kwargs)
+            file_paths, preprocesses, **kwargs)
         return dataset_instance

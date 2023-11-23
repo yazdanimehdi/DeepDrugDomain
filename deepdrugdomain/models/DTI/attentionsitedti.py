@@ -305,7 +305,7 @@ class AttentionSiteDTI(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    def forward_features(self, g):
+    def forward_features(self, drug, target):
         """
             Extract features from drug and target graphs.
 
@@ -318,18 +318,18 @@ class AttentionSiteDTI(nn.Module):
             Returns:
             - Tuple[Tensor, Tensor]: Protein and ligand representations after convolution and pooling.
         """
-        feature_protein = g[0].ndata['h']
-        feature_smile = g[1].ndata['h']
+        feature_protein = target.ndata['h']
+        feature_smile = drug.ndata['h']
         for module in self.protein_graph_conv:
-            feature_protein = module(g[0], feature_protein)
+            feature_protein = module(target, feature_protein)
 
         for module in self.ligand_graph_conv:
-            feature_smile = module(g[1], feature_smile)
+            feature_smile = module(drug, feature_smile)
 
         protein_rep = self.pool_protein(
-            g[0], feature_protein).view(-1, self.embedding_dim)
+            target, feature_protein).view(-1, self.embedding_dim)
         ligand_rep = self.pool_ligand(
-            g[1], feature_smile).view(-1, self.embedding_dim)
+            drug, feature_smile).view(-1, self.embedding_dim)
 
         return protein_rep, ligand_rep
 
@@ -355,7 +355,7 @@ class AttentionSiteDTI(nn.Module):
 
         return mask
 
-    def forward(self, g):
+    def forward(self, drug, target):
         """
             Forward pass of the model.
 
@@ -369,7 +369,7 @@ class AttentionSiteDTI(nn.Module):
             - Tuple[Tensor, Tensor]: Model output and attention weights.
         """
 
-        protein_rep, ligand_rep = self.forward_features(g)
+        protein_rep, ligand_rep = self.forward_features(drug, target)
         sequence = torch.cat((ligand_rep, protein_rep), dim=0).view(
             1, -1, self.embedding_dim)
         mask = self.generate_attention_mask(

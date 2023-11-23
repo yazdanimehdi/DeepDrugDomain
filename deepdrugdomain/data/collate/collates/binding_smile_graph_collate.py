@@ -42,9 +42,9 @@ class BindingSiteSmilesGraphCollate(BaseCollate):
         """
 
         # Unpacking the batch data
-        protein_graphs, drug_graphs, targets = zip(*batch)
+        g1, g2, targets = zip(*batch)
 
         # Stacking target tensors for batch processing
         batched_targets = torch.stack(targets, 0)
 
-        return protein_graphs, drug_graphs, batched_targets
+        return g1, g2, batched_targets
