@@ -1,4 +1,32 @@
-from typing import Callable, Dict, List, Union
+from typing import Callable, Dict, List, Union, Any
+from .factory import MetricFactory
+import numpy as np
+import torch
+
+
+def create_suitable_vector(vector: Any) -> np.ndarray:
+    new_vector = []
+    if isinstance(vector, list):
+        if isinstance(vector[0], list):
+            new_vector = np.array([item for item in zip(*vector)]).reshape(-1)
+        elif isinstance(vector[0], float):
+            new_vector = np.array(vector).reshape(-1)
+        elif isinstance(vector[0], np.ndarray):
+            new_vector = np.concatenate(vector).reshape(-1)
+        elif isinstance(vector[0], torch.Tensor):
+            new_vector = torch.cat(vector).view(-1).numpy()
+        else:
+            raise TypeError('The type of the vector is not supported.')
+
+    elif isinstance(vector, torch.Tensor):
+        new_vector = vector.view(-1).numpy()
+
+    elif isinstance(vector, np.ndarray):
+        new_vector = vector.reshape(-1)
+    else:
+        raise TypeError('The type of the vector is not supported.')
+
+    return new_vector
 
 
 class Evaluator:
@@ -35,14 +63,17 @@ class Evaluator:
         metrics (Dict[str, Callable]): Dictionary mapping metric names to their respective metric objects.
     """
 
-    def __init__(self, metrics: Dict[str, Callable]):
+    def __init__(self, metrics: str, threshold: float = 0.5) -> None:
         """
         Initialize the evaluator with desired metric objects.
 
         Args:
             metrics (Dict[str, Callable]): Dictionary of metric name to metric objects.
         """
-        self.metrics = metrics
+        self.metrics = {metrics: MetricFactory.create(
+            metrics) for metrics in metrics}
+
+        self.threshold = threshold
 
     def __call__(self, prediction: List, target: List) -> Dict[str, float]:
         """Compute and update the desired metrics on the given predictions and targets.
@@ -56,8 +87,19 @@ class Evaluator:
         """
         results = {}
         for name, metric in self.metrics.items():
-            metric.update_state(prediction, target)
-            results[name] = metric.compute(prediction, target)
+            prediction = create_suitable_vector(prediction)
+            target = create_suitable_vector(target)
+            try:
+                metric.update_state(prediction, target)
+                results[name] = metric.compute(prediction, target)
+            except:
+                try:
+                    prediction = (prediction > self.threshold).astype(int)
+                    metric.update_state(prediction, target)
+                    results[name] = metric.compute(prediction, target)
+                except ValueError:
+                    results[name] = np.nan
+
         return results
 
     def reset(self) -> None:

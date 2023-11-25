@@ -44,6 +44,7 @@ import warnings
 from typing import Type, Dict, Any, Optional
 from torch.nn import Module
 from deepdrugdomain.utils import BaseFactory
+from .base_model import BaseModel
 
 
 class ModelFactory(BaseFactory):
@@ -60,7 +61,7 @@ class ModelFactory(BaseFactory):
             _config_dir (str): Path to the configuration directory where JSON files are stored.
     """
 
-    _registry: Dict[str, Type[Module]] = {}
+    _registry: Dict[str, Type[BaseModel]] = {}
     _default_args: Dict[str, Dict[str, Any]] = {}
     _config_dir: str = 'deepdrugdomain/configs'
 
@@ -84,7 +85,7 @@ class ModelFactory(BaseFactory):
                 ... class MyModel(nn.Module):
                 ...     # model definition
         """
-        def decorator(model_class: Type[Module]):
+        def decorator(model_class: Type[BaseModel]):
             if not issubclass(model_class, Module):
                 raise TypeError(
                     f"Class {model_class.__name__} must be a subclass of torch.nn.Module")
@@ -114,7 +115,7 @@ class ModelFactory(BaseFactory):
         return decorator
 
     @classmethod
-    def create(cls, key: str, version: Optional[str] = None, **kwargs) -> Module:
+    def create(cls, key: str, version: Optional[str] = None, **kwargs) -> BaseModel:
         """
             Create an instance of a registered model with the specified or default configuration.
 
@@ -136,6 +137,9 @@ class ModelFactory(BaseFactory):
                 >>> model_instance = ModelFactory.create("my_model", "human")
                 >>> model_instance_default = ModelFactory.create("my_model")
         """
+
+        if key not in cls._registry:
+            raise ValueError(f"Model '{key}' not registered.")
 
         model_key = f"{key}_{version}" if version and f"{key}_{version}" in cls._registry else key
         if version and f"{key}_{version}" not in cls._registry:

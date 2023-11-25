@@ -40,15 +40,8 @@
                 0.2,
                 0.2
             ],
-            "protein_conv_normalization": [
-                "instance_norm1d",
-                "instance_norm1d"
-            ],
-            "ligand_conv_normalization": [
-                "instance_norm1d",
-                "instance_norm1d",
-                "instance_norm1d"
-            ],
+            "protein_conv_normalization": [true, true],
+            "ligand_conv_normalization": [true, true, true],
             "protein_graph_conv_kwargs": [
                 {
                     "k": 8

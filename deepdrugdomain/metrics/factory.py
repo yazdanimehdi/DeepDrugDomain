@@ -33,7 +33,7 @@ class MetricFactory(BaseFactory):
     _registry: Dict[str, Callable] = {}
 
     @classmethod
-    def register(cls, name: str) -> Callable:
+    def register(cls, key: str) -> Callable:
         """Decorator to register a new metric function.
 
         Args:
@@ -44,15 +44,15 @@ class MetricFactory(BaseFactory):
         """
 
         def inner(func: Callable) -> Callable:
-            if name in cls._registry:
-                raise ValueError(f"Metric '{name}' already registered.")
-            cls._registry[name] = func
+            if key in cls._registry:
+                raise ValueError(f"Metric '{key}' already registered.")
+            cls._registry[key] = func
             return func
 
         return inner
 
     @classmethod
-    def create(cls, name: str) -> Union[Callable, None]:
+    def create(cls, key: str) -> Union[Callable, None]:
         """Fetch the metric function from the registry.
 
         Args:
@@ -62,28 +62,7 @@ class MetricFactory(BaseFactory):
             Callable: The metric function corresponding to the given name.
             None: If no metric function is found for the given name.
         """
-        return cls._registry.get(name)
+        if key not in cls._registry:
+            raise ValueError(f"metric '{key}' not registered.")
 
-    @classmethod
-    def compute_metrics(cls, metric_names: List[str], predictions: List, targets: List) -> Dict[str, float]:
-        """Compute and return the desired metrics.
-
-        Args:
-            metric_names (list[str]): List of metric names to compute.
-            predictions (list): Model predictions.
-            targets (list): Ground truth targets.
-
-        Returns:
-            dict[str, float]: A dictionary containing metric names and their computed scores.
-
-        Raises:
-            ValueError: If a given metric name is not found in the registry.
-        """
-
-        results = {}
-        for metric_name in metric_names:
-            metric_func = cls.create(metric_name)
-            if not metric_func:
-                raise ValueError(f"Metric '{metric_name}' not found.")
-            results[metric_name] = metric_func(predictions, targets)
-        return results
+        return cls._registry[key]()

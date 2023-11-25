@@ -1,20 +1,12 @@
 import argparse
-from random import shuffle
-
 import numpy as np
-import pandas as pd
 import torch
-from sklearn.metrics import roc_auc_score, average_precision_score, f1_score, precision_score, recall_score, \
-    balanced_accuracy_score
-from torch.optim.lr_scheduler import ExponentialLR
 from deepdrugdomain.optimizers.factory import OptimizerFactory
 from deepdrugdomain.schedulers.factory import SchedulerFactory
-from deepdrugdomain.data import CustomDataset
 from deepdrugdomain.data.collate import CollateFactory
 from torch.utils.data import DataLoader
 from deepdrugdomain.models.factory import ModelFactory
 from deepdrugdomain.utils.config import args_to_config
-from deepdrugdomain.data.datasets import DatasetFactory
 from dgllife.utils import CanonicalAtomFeaturizer
 from pathlib import Path
 from tqdm import tqdm
@@ -76,7 +68,7 @@ def main(args):
     dataset = ddd.data.DatasetFactory.create(
         "human", file_paths="data/human/", preprocesses=preprocesses)
     datasets = dataset(split_method="random_split",
-                       frac=[0.8, 0.1, 0.1], seed=seed, sample=0.01)
+                       frac=[0.8, 0.1, 0.1], seed=seed)
     collate_fn = CollateFactory.create("binding_graph_smile_graph")
     data_loader_train = DataLoader(datasets[0], batch_size=32, shuffle=True, num_workers=4, pin_memory=True,
                                    collate_fn=collate_fn, drop_last=True)
@@ -88,53 +80,37 @@ def main(args):
     model = ModelFactory.create("attentionsitedti")
     criterion = torch.nn.BCELoss()
     optimizer = OptimizerFactory.create(
-        "adamw", model.parameters(), lr=1e-4, weight_decay=0.03)
-    scheduler = SchedulerFactory.create("cosine", optimizer)
+        "adamw", model.parameters(), lr=1e-3, weight_decay=0.0)
+    scheduler = SchedulerFactory.create(
+        "cosine", optimizer, warmup_epochs=5, warmup_lr=1e-5, num_epochs=200)
     device = torch.device("cpu")
     model.to(device)
+    train_evaluator = ddd.metrics.Evaluator(["accuracy_score"], threshold=0.5)
+    test_evaluator = ddd.metrics.Evaluator(
+        ["accuracy_score", "f1_score", "auc", "precision_score", "recall_score"], threshold=0.5)
     epochs = 200
     accum_iter = 1
+
     for epoch in range(epochs):
-        losses = []
-        accs = []
-        model.train()
-        with tqdm(data_loader_train) as tepoch:
-            tepoch.set_description(f"Epoch {epoch}")
-            for batch_idx, (drug, protein, target) in enumerate(tepoch):
-                outs = []
-                for item in range(len(drug)):
-                    d = drug[item].to(device)
-                    p = protein[item].to(device)
-                    out = model(d, p)
-                    outs.append(out)
+        print(f"Epoch {epoch}")
+        model.train_one_epoch(data_loader_train, device, criterion,
+                              optimizer, num_epochs=200, scheduler=scheduler, evaluator=train_evaluator, grad_accum_steps=accum_iter)
+        print(model.evaluate(data_loader_val, device,
+              criterion, evaluator=test_evaluator))
 
-                out = torch.stack(outs, dim=0).squeeze(1)
+    model.evaluate(data_loader_test, device,
+                   criterion, evaluator=test_evaluator)
 
-                target = target.to(
-                    device).view(-1, 1).to(torch.float)
-                loss = criterion(out, target)
-                matches = [torch.argmax(i) == j
-                           for i, j in zip(out, target)]
-                acc = matches.count(True) / len(matches)
-                accs.append(acc)
-                losses.append(loss.detach().cpu())
-                loss.backward()
-                if ((batch_idx + 1) % accum_iter == 0) or (batch_idx + 1 == len(data_loader_train)):
-                    optimizer.step()
-                    optimizer.zero_grad()
-                acc_mean = np.array(accs).mean()
-                loss_mean = np.array(losses).mean()
-                tepoch.set_postfix(loss=loss_mean, accuracy=acc_mean)
-        # scheduler.step()
-        # test_func(model, data_loader_val, device)
-        # test_func(model, data_loader_test, device)
-        # fn = "last_checkpoint_celegans.pt"
-        # info_dict = {
-        #     'epoch': epoch,
-        #     'net_state': model.state_dict(),
-        #     'optimizer_state': optimizer.state_dict()
-        # }
-        # torch.save(info_dict, fn)
+    # scheduler.step()
+    # test_func(model, data_loader_val, device)
+    # test_func(model, data_loader_test, device)
+    # fn = "last_checkpoint_celegans.pt"
+    # info_dict = {
+    #     'epoch': epoch,
+    #     'net_state': model.state_dict(),
+    #     'optimizer_state': optimizer.state_dict()
+    # }
+    # torch.save(info_dict, fn)
 
 
 if __name__ == '__main__':

@@ -22,19 +22,26 @@ Citation:
 [Please provide the actual citation for the paper here.]
 
 """
+import numpy as np
 import torch
 from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
+from tqdm import tqdm
 from deepdrugdomain.layers import LayerFactory, ActivationFactory
-from typing import Optional, Sequence
+from typing import Any, Callable, List, Optional, Sequence, Type
 
 from deepdrugdomain.utils.weight_init import trunc_normal_
 from ..factory import ModelFactory
+from ..base_model import BaseModel
+from deepdrugdomain.metrics import Evaluator
+from torch.utils.data import DataLoader
+from torch.optim.optimizer import Optimizer
+from deepdrugdomain.schedulers import BaseScheduler
 
 
 @ModelFactory.register("attentionsitedti")
-class AttentionSiteDTI(nn.Module):
+class AttentionSiteDTI(BaseModel):
     """
         An Interpretable Graph-Based Model for Drug-Target Interaction (DTI) Prediction.
 
@@ -203,9 +210,9 @@ class AttentionSiteDTI(nn.Module):
                  proj_drop: float,
                  attention_layer_bias: bool,
                  protein_conv_dropout_rate: Sequence[float],
-                 protein_conv_normalization: Sequence[str],
+                 protein_conv_normalization: Sequence[bool],
                  ligand_conv_dropout_rate: Sequence[float],
-                 ligand_conv_normalization: Sequence[str],
+                 ligand_conv_normalization: Sequence[bool],
                  head_dropout_rate: float,
                  head_activation_fn: Optional[str],
                  protein_graph_conv_kwargs: Sequence[dict],
@@ -394,3 +401,123 @@ class AttentionSiteDTI(nn.Module):
             out = self.head_dropout(out)
         out = torch.sigmoid(self.fc_out(out))
         return out
+
+    def predict(self, drug: List[Any], target: List[Any]) -> Any:
+        """
+            Make predictions using the model.
+
+            Parameters:
+            - g (tuple): A tuple containing the drug and target graphs.
+
+            Returns:
+            - Tensor: The predictions.
+        """
+        return self.forward(drug, target)
+
+    def train_one_epoch(self, dataloader: DataLoader, device: torch.device, criterion: Callable, optimizer: Optimizer, num_epochs: int, scheduler: Optional[Type[BaseScheduler]] = None, evaluator: Optional[Type[Evaluator]] = None, grad_accum_steps: int = 1, clip_grad: Optional[str] = None, logger: Optional[Any] = None) -> Any:
+
+        accum_steps = grad_accum_steps
+        last_accum_steps = len(dataloader) % accum_steps
+        updates_per_epoch = (len(dataloader) + accum_steps - 1) // accum_steps
+        num_updates = num_epochs * updates_per_epoch
+        last_batch_idx = len(dataloader) - 1
+        last_batch_idx_to_accum = len(dataloader) - last_accum_steps
+
+        losses = []
+        predictions = []
+        targets = []
+        self.train()
+        with tqdm(dataloader) as t:
+            t.set_description('Training')
+            for batch_idx, (drug, protein, target) in enumerate(t):
+                last_batch = batch_idx == last_batch_idx
+                need_update = last_batch or (batch_idx + 1) % accum_steps == 0
+                update_idx = batch_idx // accum_steps
+
+                if batch_idx >= last_batch_idx_to_accum:
+                    accum_steps = last_accum_steps
+
+                outs = []
+                for item in range(len(drug)):
+                    d = drug[item].to(device)
+                    p = protein[item].to(device)
+                    out = self.forward(d, p)
+                    outs.append(out)
+
+                out = torch.stack(outs, dim=0).squeeze(1)
+                target = target.to(
+                    device).view(-1, 1).to(torch.float)
+
+                loss = criterion(out, target)
+                loss /= accum_steps
+
+                loss.backward()
+                losses.append(loss.detach().cpu().item())
+                predictions.append(out.detach().cpu())
+                targets.append(target.detach().cpu())
+                metrics = evaluator(predictions, targets) if evaluator else {}
+
+                metrics["loss"] = np.mean(losses) * accum_steps
+                lrl = [param_group['lr']
+                       for param_group in optimizer.param_groups]
+                lr = sum(lrl) / len(lrl)
+                metrics["lr"] = lr
+
+                t.set_postfix(**metrics)
+
+                if logger is not None:
+                    logger.log(metrics)
+
+                optimizer.step()
+
+                num_updates += 1
+                optimizer.zero_grad()
+
+                if scheduler is not None:
+                    scheduler.step_update(
+                        num_updates=num_updates, metric=metrics["loss"])
+
+    def evaluate(self, dataloader: DataLoader, device: torch.device, criterion: Callable, evaluator: Optional[Type[Evaluator]] = None, logger: Optional[Any] = None) -> Any:
+
+        losses = []
+        predictions = []
+        targets = []
+        self.eval()
+        with tqdm(dataloader) as t:
+            t.set_description('Testing')
+            for batch_idx, (drug, protein, target) in enumerate(t):
+                outs = []
+                for item in range(len(drug)):
+                    d = drug[item].to(device)
+                    p = protein[item].to(device)
+                    out = self.forward(d, p)
+                    outs.append(out)
+
+                out = torch.stack(outs, dim=0).squeeze(1)
+                target = target.to(
+                    device).view(-1, 1).to(torch.float)
+
+                loss = criterion(out, target)
+                losses.append(loss.detach().cpu().item())
+                predictions.append(out.detach().cpu())
+                targets.append(target.detach().cpu())
+                metrics = evaluator(predictions, targets) if evaluator else {}
+                metrics["loss"] = np.mean(losses)
+                t.set_postfix(**metrics)
+
+        metrics = evaluator(predictions, targets) if evaluator else {}
+        metrics["loss"] = np.mean(losses)
+
+        metrics = {"val" + str(key): val for key, val in metrics.items()}
+
+        if logger is not None:
+            logger.log(metrics)
+
+    def reset_head(self) -> None:
+        pass
+
+    def load_checkpoint(self, *args, **kwargs) -> None:
+        return super().load_checkpoint(*args, **kwargs)
+
+    def save_checkpoint(self, *args, **kwargs) -> None:
+        return super().save_checkpoint(*args, **kwargs)

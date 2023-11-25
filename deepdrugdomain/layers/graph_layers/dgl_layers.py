@@ -32,7 +32,7 @@ class GCN(nn.Module):
     Wrapper class for DGL's Graph Convolution (GCN) layer.
     """
 
-    def __init__(self, in_feat, out_feat, normalization=None, dropout=0.0, **kwargs):
+    def __init__(self, in_feat, out_feat, normalization=False, dropout=0.0, **kwargs):
         super().__init__()
 
         # Default parameter values
@@ -55,15 +55,15 @@ class GCN(nn.Module):
             kwargs['activation']) if kwargs['activation'] is not None else None
 
         self.layer = GraphConv(in_feats=in_feat, out_feats=out_feat, **kwargs)
-        self.norm = LayerFactory.create(
-            normalization, out_feat) if normalization else nn.Identity()
+        self.norm = normalization
         self.dropout = nn.Dropout(dropout, inplace=True)
 
     def forward(self, g, features: torch.Tensor) -> torch.Tensor:
         """ Pass the graph and its features through the GCN layer. """
 
         features = self.layer(g, features)
-        features = self.norm(features)
+        if self.norm:
+            features = F.normalize(features)
         features = self.dropout(features)
 
         return features
@@ -104,14 +104,14 @@ class GAT(nn.Module):
 
         self.layer = GATConv(
             in_feats=in_feat, out_feats=out_feat, **kwargs)
-        self.norm = LayerFactory.create(
-            normalization, out_feat) if normalization else nn.Identity()
+        self.norm = normalization
         self.dropout = nn.Dropout(dropout, inplace=True)
 
     def forward(self, g, features: torch.Tensor) -> torch.Tensor:
         """ Pass the graph and its features through the GAT layer. """
         features = self.layer(g, features)
-        features = self.norm(features)
+        if self.norm:
+            features = F.normalize(features)
         features = self.dropout(features)
 
         return features
@@ -144,14 +144,14 @@ class TAG(nn.Module):
             kwargs['activation']) if kwargs['activation'] is not None else None
 
         self.layer = TAGConv(in_feats=in_feat, out_feats=out_feat, **kwargs)
-        self.norm = LayerFactory.create(
-            normalization, out_feat) if normalization else nn.Identity()
+        self.norm = normalization
         self.dropout = nn.Dropout(dropout, inplace=True)
 
     def forward(self, g, features: torch.Tensor) -> torch.Tensor:
         """ Pass the graph and its features through the TAG layer. """
         features = self.layer(g, features)
-        features = self.norm(features)
+        if self.norm:
+            features = F.normalize(features)
         features = self.dropout(features)
 
         return features
