@@ -81,13 +81,21 @@ class DrugProteinDataset(Dataset):
                 continue
 
             if self._preprocessing_done(preprocess.__class__.__name__, attribute):
-                if not in_memory:
-                    mapping_data = self._load_mapping(preprocess, attribute)
-                else:
-                    path = preprocess.get_saved_path(
-                        self.save_directory, attribute)
-                    mapping_data = preprocess.load_preprocessed_to_memory(path)
-                    _ = self._load_mapping(preprocess, attribute)
+                mapping_data = self._load_mapping(preprocess, attribute)
+                path = preprocess.get_saved_path(
+                    self.save_directory, attribute) if in_memory else None
+                processed_data = preprocess.load_preprocessed_to_memory(
+                    path) if in_memory else None
+                new_data = list(set(data) - set(mapping_data.keys()))
+
+                if len(new_data) > 0:
+                    info_dict = preprocess.update(
+                        processed_data, mapping_data, new_data, self.save_directory, in_memory, self.threads, attribute)
+                    mapping_data = info_dict['mapping_info'] if not in_memory else info_dict['processed_data']
+                    continue
+
+                mapping_data = processed_data if in_memory else mapping_data
+
             else:
                 info_dict = preprocess.process_and_get_info(
                     data, self.save_directory, in_memory, self.threads, attribute)
@@ -106,9 +114,10 @@ class DrugProteinDataset(Dataset):
         """
         mapping_path = os.path.join(
             self.save_directory, f"{preprocess_type}_{attribute}_mapping_info.json")
+
         return os.path.exists(mapping_path)
 
-    def _load_mapping(self, preprocess: BasePreprocessor, attribute: str) -> Dict[Any, Any]:
+    def _load_mapping(self, preprocess: BasePreprocessor, attribute: str, ) -> Dict[Any, Any]:
         """
         Load the mapping dictionary from the shard directory.
 

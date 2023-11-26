@@ -6,12 +6,10 @@
             "protein_input_size": 74,
             "ligand_input_size": 74,
             "protein_graph_conv_dims": [
-                50,
-                45
+                50
             ],
             "ligand_graph_conv_dims": [
                 50,
-                45,
                 45
             ],
             "sequence_length": 150,
@@ -21,14 +19,13 @@
             "use_lstm_layer": false,
             "use_bilstm": false,
             "lstm_input": null,
-            "lstm_output": null,
+            "lstm_hidden": null,
             "lstm_num_layers": null,
             "lstm_dropout_rate": null,
             "head_dims": [
                 2000,
                 1000,
-                500,
-                1
+                500
             ],
             "attention_layer": "transformer_attention",
             "attention_head": 1,
@@ -69,7 +66,7 @@
                 0.2
             ],
             "head_dropout_rate": 0.1,
-            "head_activation_fn": "relu"
+            "head_activation_fn": ["relu", "relu", "relu", "sigmoid"]
         }
     }
 }

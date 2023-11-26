@@ -397,6 +397,52 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
             ray.shutdown()
             return {'mapping_info': all_processed_data}
 
+    def update(self, old_processed_data, old_mapping_data, data: List[Any], directory: str, in_memory: bool = True,
+               num_threads: int = 4, file_prefix: str = "", *args, **kwargs) -> None:
+        """
+              Process data and retrieve relevant information for newly added data.
+        """
+        data = self.data_preparations(data)
+        ray.init(num_cpus=num_threads)
+        registered_name = self.__class__.__name__
+        if in_memory:
+            futures = {d: self._worker.remote(self, d) for d in data}
+            all_processed_data, invalid_results = self._process(futures, data)
+            mapping_info = self.generate_mapping(data)
+            mapping_info.update(old_mapping_data)
+            all_processed_data.update(old_processed_data)
+            self.save_preprocessed_to_disk(
+                all_processed_data, directory, file_prefix)
+            save_mapping(mapping_info, os.path.join(
+                directory, f"{registered_name}_{file_prefix}_mapping_info.json"))
+            ray.shutdown()
+            nones = []
+            for item in all_mapping_data.keys():
+                if all_mapping_data[item] is None:
+                    nones.append(item)
+            self.none = nones
+            # Return the mapping info and the processed data
+            return {
+                'mapping_info': mapping_info,
+                'processed_data': all_processed_data
+            }
+
+        else:
+            idx_update = len(old_mapping_data)
+            futures = {d: self._preprocess_and_save_data_point.remote(
+                self, d, directory, idx + idx_update, file_prefix) for idx, d in enumerate(data)}
+            all_mapping_data, invalid_results = self._process(futures, data)
+            all_mapping_data.update(old_mapping_data)
+            save_mapping(all_mapping_data,
+                         os.path.join(directory, f"{registered_name}_{file_prefix}_mapping_info.json"))
+            ray.shutdown()
+            nones = []
+            for item in all_mapping_data.keys():
+                if all_mapping_data[item] is None:
+                    nones.append(item)
+            self.none = nones
+            return {'mapping_info': all_mapping_data}
+
     def generate_mapping(self, data: List[Any]) -> Dict[Any, Any]:
         """
             Generates a mapping between data items and their position.

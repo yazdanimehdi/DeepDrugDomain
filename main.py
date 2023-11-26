@@ -92,14 +92,14 @@ def main(args):
     accum_iter = 1
 
     for epoch in range(epochs):
-        print(f"Epoch {epoch}")
+        print(f"Epoch {epoch}:")
         model.train_one_epoch(data_loader_train, device, criterion,
                               optimizer, num_epochs=200, scheduler=scheduler, evaluator=train_evaluator, grad_accum_steps=accum_iter)
         print(model.evaluate(data_loader_val, device,
-              criterion, evaluator=test_evaluator))
+                             criterion, evaluator=test_evaluator))
 
-    model.evaluate(data_loader_test, device,
-                   criterion, evaluator=test_evaluator)
+    print(model.evaluate(data_loader_test, device,
+                         criterion, evaluator=test_evaluator))
 
     # scheduler.step()
     # test_func(model, data_loader_val, device)

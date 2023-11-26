@@ -28,7 +28,7 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
-from deepdrugdomain.layers import LayerFactory, ActivationFactory
+from deepdrugdomain.layers import LayerFactory, ActivationFactory, GraphConvEncoder, LinearHead
 from typing import Any, Callable, List, Optional, Sequence, Type
 
 from deepdrugdomain.utils.weight_init import trunc_normal_
@@ -199,7 +199,7 @@ class AttentionSiteDTI(BaseModel):
                  use_lstm_layer: bool,
                  use_bilstm: bool,
                  lstm_input: Optional[int],
-                 lstm_output: Optional[int],
+                 lstm_hidden: Optional[int],
                  lstm_num_layers: Optional[int],
                  lstm_dropout_rate: Optional[float],
                  head_dims: Sequence[int],
@@ -225,53 +225,23 @@ class AttentionSiteDTI(BaseModel):
         super(AttentionSiteDTI, self).__init__()
         self.embedding_dim = embedding_dim
         self.sequence_length = sequence_length
+        self.head_dims = head_dims
+        self.head_dropout_rate = head_dropout_rate
+        self.head_activation_fn = head_activation_fn
 
-        # Initialize protein graph convolution layers
-        p_dims = [protein_input_size] + list(protein_graph_conv_dims)
-        assert len(p_dims) - 1 == len(protein_conv_dropout_rate) == len(protein_graph_conv_kwargs) == len(
-            protein_conv_normalization), "The number of protein graph convolution layers parameters must be the same"
-        self.protein_graph_conv = nn.ModuleList([
-            LayerFactory.create(protein_graph_conv_layer[i],
-                                p_dims[i],
-                                p_dims[i + 1],
-                                normalization=protein_conv_normalization[i],
-                                dropout=protein_conv_dropout_rate[i],
-                                **protein_graph_conv_kwargs[i]) for i in range(len(p_dims) - 1)])
+        # Initialize target encoder layers
+        self.target_encoder = GraphConvEncoder(protein_graph_conv_layer, protein_input_size, embedding_dim, protein_graph_conv_dims, protein_graph_pooling,
+                                               protein_graph_pooling_kwargs, protein_graph_conv_kwargs, protein_conv_dropout_rate, protein_conv_normalization, **kwargs)
 
-        # Initialize drug graph convolution layers
-        l_dims = [ligand_input_size] + list(ligand_graph_conv_dims)
-        assert len(l_dims) - 1 == len(ligand_conv_dropout_rate) == len(ligand_graph_conv_kwargs) == len(
-            ligand_conv_normalization), "The number of ligand graph convolution layers parameters must be the same"
-        self.ligand_graph_conv = nn.ModuleList([
-            LayerFactory.create(ligand_graph_conv_layer[i],
-                                l_dims[i],
-                                l_dims[i + 1],
-                                normalization=ligand_conv_normalization[i],
-                                dropout=ligand_conv_dropout_rate[i],
-                                **ligand_graph_conv_kwargs[i]) for i in range(len(l_dims) - 1)])
-
-        # Graph pooling layers
-        self.pool_ligand = LayerFactory.create(
-            ligand_graph_pooling, **ligand_graph_pooling_kwargs)
-        self.pool_protein = LayerFactory.create(
-            protein_graph_pooling, **protein_graph_pooling_kwargs)
+        # Initialize ligand encoder layers
+        self.drug_encoder = GraphConvEncoder(ligand_graph_conv_layer, ligand_input_size, embedding_dim, ligand_graph_conv_dims, ligand_graph_pooling,
+                                             ligand_graph_pooling_kwargs, ligand_graph_conv_kwargs, ligand_conv_dropout_rate, ligand_conv_normalization, **kwargs)
 
         self.head_dropout = nn.Dropout(head_dropout_rate)
 
-        # Graph pooling layers
-        self.use_lstm = use_lstm_layer
-        if use_lstm_layer:
-            assert None not in [lstm_input, lstm_output, lstm_dropout_rate,
-                                lstm_num_layers], "You need to set the LSTM parameters in the model"
-            self.lstm = nn.LSTM(lstm_input, self.embedding_dim, num_layers=lstm_num_layers, bidirectional=use_bilstm,
-                                dropout=lstm_dropout_rate)
-            self.h_0 = Variable(torch.zeros(
-                lstm_num_layers * 2, 1, self.embedding_dim))
-            self.c_0 = Variable(torch.zeros(
-                lstm_num_layers * 2, 1, self.embedding_dim))
-
-        else:
-            self.lstm = nn.Identity()
+        # Sequence encoder layers
+        self.lstm = self.lstm = nn.LSTM(lstm_input, self.embedding_dim, lstm_hidden,
+                                        lstm_num_layers, lstm_dropout_rate, use_bilstm) if use_lstm_layer else None
 
         assert self.embedding_dim % attention_head == 0, "The embedding dimension must be advisable by number of \
                                                           attention heads"
@@ -282,15 +252,8 @@ class AttentionSiteDTI(BaseModel):
                                              attn_drop=attention_dropout, proj_drop=proj_drop, **kwargs)
 
         # Prediction layer
-        self.fc = nn.ModuleList()
-        neuron_list = [self.embedding_dim * sequence_length] + list(head_dims)
-        for item in range(len(neuron_list) - 2):
-            self.fc.append(nn.Linear(neuron_list[item], neuron_list[item + 1]))
-
-        self.fc_out = nn.Linear(neuron_list[-2], neuron_list[-1])
-
-        self.activation = ActivationFactory.create(
-            head_activation_fn) if head_activation_fn else nn.Identity()
+        self.head = LinearHead(self.embedding_dim * self.sequence_length, 1, self.head_dims,
+                               self.head_activation_fn, self.head_dropout_rate, normalization=None)
 
         self.apply(self._init_weights)
 
@@ -311,31 +274,6 @@ class AttentionSiteDTI(BaseModel):
         elif isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
-
-    def forward_features(self, drug, target):
-        """
-            Extract features from drug and target graphs.
-
-            This method processes the drug and target graphs through their respective 
-            graph convolutional layers and pools the results.
-
-            Parameters:
-            - g (tuple): A tuple containing the drug and target graphs.
-
-            Returns:
-            - Tuple[Tensor, Tensor]: Protein and ligand representations after convolution and pooling.
-        """
-
-        for module in self.protein_graph_conv:
-            target = module(target)
-
-        for module in self.ligand_graph_conv:
-            drug = module(drug)
-
-        protein_rep = self.pool_protein(target).view(-1, self.embedding_dim)
-        ligand_rep = self.pool_ligand(drug).view(-1, self.embedding_dim)
-
-        return protein_rep, ligand_rep
 
     def generate_attention_mask(self, sequence_size):
         """
@@ -359,6 +297,18 @@ class AttentionSiteDTI(BaseModel):
 
         return mask
 
+    def sequence_creator(self, target_rep, drug_rep):
+        sequence = torch.cat((drug_rep, target_rep), dim=0).view(
+            1, -1, self.embedding_dim)
+
+        mask = self.generate_attention_mask(
+            sequence.size()[1]).to(sequence.device)
+
+        sequence = F.pad(input=sequence, pad=(
+            0, 0, 0, self.sequence_length - sequence.size()[1]), mode='constant', value=0)
+
+        return sequence, mask
+
     def forward(self, drug, target):
         """
             Forward pass of the model.
@@ -373,31 +323,24 @@ class AttentionSiteDTI(BaseModel):
             - Tuple[Tensor, Tensor]: Model output and attention weights.
         """
 
-        protein_rep, ligand_rep = self.forward_features(drug, target)
-        sequence = torch.cat((ligand_rep, protein_rep), dim=0).view(
-            1, -1, self.embedding_dim)
-        mask = self.generate_attention_mask(
-            sequence.size()[1]).to(sequence.device)
-        sequence = F.pad(input=sequence, pad=(0, 0, 0, self.sequence_length - sequence.size()[1]), mode='constant',
-                         value=0)
+        protein_rep = self.target_encoder(target)
+        ligand_rep = self.drug_encoder(drug)
 
-        sequence = sequence.permute(1, 0, 2)
+        sequence, mask = self.sequence_creator(protein_rep, ligand_rep)
 
-        if self.use_lstm:
+        if self.lstm is not None:
+            sequence.permute(1, 0, 2)
             output, _ = self.lstm(sequence, (self.h_0, self.c_0))
+            output = output.permute(1, 0, 2)
+
         else:
             output = sequence
-
-        output = output.permute(1, 0, 2)
 
         out, att = self.attention(output, mask=mask, return_attn=True)
 
         out = out.view(-1, out.size()[1] * out.size()[2])
-        for layer in self.fc:
-            out = F.relu(layer(out))
-            out = self.head_dropout(out)
-        out = torch.sigmoid(self.fc_out(out))
-        return out
+
+        return self.head(out), att
 
     def predict(self, drug: List[Any], target: List[Any]) -> Any:
         """
@@ -412,7 +355,9 @@ class AttentionSiteDTI(BaseModel):
         return self.forward(drug, target)
 
     def train_one_epoch(self, dataloader: DataLoader, device: torch.device, criterion: Callable, optimizer: Optimizer, num_epochs: int, scheduler: Optional[Type[BaseScheduler]] = None, evaluator: Optional[Type[Evaluator]] = None, grad_accum_steps: int = 1, clip_grad: Optional[str] = None, logger: Optional[Any] = None) -> Any:
-
+        """
+            Train the model for one epoch.
+        """
         accum_steps = grad_accum_steps
         last_accum_steps = len(dataloader) % accum_steps
         updates_per_epoch = (len(dataloader) + accum_steps - 1) // accum_steps
@@ -479,7 +424,9 @@ class AttentionSiteDTI(BaseModel):
                         num_updates=num_updates, metric=metrics["loss"])
 
     def evaluate(self, dataloader: DataLoader, device: torch.device, criterion: Callable, evaluator: Optional[Type[Evaluator]] = None, logger: Optional[Any] = None) -> Any:
-
+        """
+            Evaluate the model on the given dataset.
+        """
         losses = []
         predictions = []
         targets = []
@@ -488,11 +435,15 @@ class AttentionSiteDTI(BaseModel):
             t.set_description('Testing')
             for batch_idx, (drug, protein, target) in enumerate(t):
                 outs = []
-                for item in range(len(drug)):
-                    d = drug[item].to(device)
-                    p = protein[item].to(device)
-                    out = self.forward(d, p)
-                    outs.append(out)
+                with torch.no_grad():
+                    for item in range(len(drug)):
+                        d = drug[item].to(device)
+                        p = protein[item].to(device)
+                        out = self.forward(d, p)
+                        if isinstance(out, tuple):
+                            out = out[0]
+
+                        outs.append(out)
 
                 out = torch.stack(outs, dim=0).squeeze(1)
                 target = target.to(
@@ -509,13 +460,16 @@ class AttentionSiteDTI(BaseModel):
         metrics = evaluator(predictions, targets) if evaluator else {}
         metrics["loss"] = np.mean(losses)
 
-        metrics = {"val" + str(key): val for key, val in metrics.items()}
+        metrics = {"val_" + str(key): val for key, val in metrics.items()}
 
         if logger is not None:
             logger.log(metrics)
 
+        return metrics
+
     def reset_head(self) -> None:
-        pass
+        self.head = LinearHead(self.embedding_dim * self.sequence_length, 1, self.head_dims,
+                               self.head_activation_fn, self.head_dropout_rate, normalization=None)
 
     def load_checkpoint(self, *args, **kwargs) -> None:
         return super().load_checkpoint(*args, **kwargs)
