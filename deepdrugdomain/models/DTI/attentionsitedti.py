@@ -237,8 +237,6 @@ class AttentionSiteDTI(BaseModel):
         self.drug_encoder = GraphConvEncoder(ligand_graph_conv_layer, ligand_input_size, embedding_dim, ligand_graph_conv_dims, ligand_graph_pooling,
                                              ligand_graph_pooling_kwargs, ligand_graph_conv_kwargs, ligand_conv_dropout_rate, ligand_conv_normalization, **kwargs)
 
-        self.head_dropout = nn.Dropout(head_dropout_rate)
-
         # Sequence encoder layers
         self.lstm = self.lstm = nn.LSTM(lstm_input, self.embedding_dim, lstm_hidden,
                                         lstm_num_layers, lstm_dropout_rate, use_bilstm) if use_lstm_layer else None
@@ -330,7 +328,7 @@ class AttentionSiteDTI(BaseModel):
 
         if self.lstm is not None:
             sequence.permute(1, 0, 2)
-            output, _ = self.lstm(sequence, (self.h_0, self.c_0))
+            output, _ = self.lstm(sequence)
             output = output.permute(1, 0, 2)
 
         else:

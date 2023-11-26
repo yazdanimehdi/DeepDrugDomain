@@ -40,7 +40,7 @@ class GCN(nn.Module):
         self.layer = GCNConv(
             in_channels=in_feat, out_channels=out_feat, normalize=normalization, **kwargs)
         self.norm = normalization
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, graph: Data) -> Data:
         features = graph.x
@@ -93,7 +93,7 @@ class GAT(nn.Module):
         self.layer = GATConv(in_channels=in_feat,
                              out_channels=out_feat, **kwargs)
         self.norm = normalization
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, graph: Data) -> Data:
         features = graph.x
@@ -136,7 +136,7 @@ class TAG(nn.Module):
 
         self.layer = TAGConv(
             in_channels=in_feat, out_channels=out_feat, normalize=normalization, **kwargs)
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, graph: Data) -> Data:
         features = graph.x
@@ -173,7 +173,7 @@ class GINLayer(nn.Module):
         self.activation = ActivationFactory.create(
             kwargs['activation']) if kwargs['activation'] is not None else nn.Identity()
         self.layer = GINConv(**kwargs)
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, graph: Data) -> Data:
         features = graph.x
@@ -214,7 +214,7 @@ class ChebLayer(nn.Module):
         self.layer = ChebConv(in_channels=in_feat,
                               out_channels=out_feat, **kwargs)
         self.norm = normalization
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, graph: Data) -> Data:
         features = graph.x
@@ -253,7 +253,7 @@ class SAGELayer(nn.Module):
             kwargs['activation']) if kwargs['activation'] is not None else nn.Identity()
         self.layer = SAGEConv(
             in_channels=in_feat, out_channels=out_feat, normalize=normalization, **kwargs)
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, graph: Data) -> Data:
         features = graph.x
@@ -290,7 +290,7 @@ class GraphConvLayer(nn.Module):
         self.layer = GraphConv(in_channels=in_feat,
                                out_channels=out_feat, **kwargs)
         self.norm = normalization
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, graph: Data) -> Data:
         features = graph.x
@@ -330,7 +330,7 @@ class GatedGraphLayer(nn.Module):
         self.layer = GatedGraphConv(
             out_channels=out_feat, num_layers=kwargs['num_layers'], **kwargs)
         self.norm = normalization
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, graph: Data) -> Data:
         features = graph.x
@@ -372,7 +372,7 @@ class ARMALayer(nn.Module):
         self.layer = ARMAConv(in_channels=in_feat,
                               out_channels=out_feat, **kwargs)
         self.norm = normalization
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, graph: Data) -> Data:
         features = graph.x
@@ -416,7 +416,7 @@ class GraphUNetLayer(nn.Module):
         self.layer = GraphUNet(in_channels=in_feat,
                                out_channels=out_feat, **kwargs)
         self.norm = normalization
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, graph: Data) -> Data:
         features = graph.x
@@ -456,7 +456,7 @@ class AGNNLayer(nn.Module):
             kwargs['activation']) if kwargs['activation'] is not None else nn.Identity()
         self.layer = AGNNConv(**kwargs)
         self.norm = normalization
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, graph: Data) -> Data:
         features = graph.x
@@ -496,7 +496,7 @@ class APPNPLayer(nn.Module):
             kwargs['activation']) if kwargs['activation'] is not None else nn.Identity()
         self.layer = APPNP(
             in_channels=in_feat, out_channels=out_feat, normalize=normalization ** kwargs)
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, graph: Data) -> Data:
         features = graph.x

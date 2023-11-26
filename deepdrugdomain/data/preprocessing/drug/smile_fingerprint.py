@@ -168,6 +168,14 @@ class FingerprintFromSmilePreprocessor(BasePreprocessor):
                 fingerprints = calcPubChemFingerAll(smiles)
 
             elif self.method == 'ammvf':
+                self.atom_dict = self.atom_dict if self.atom_dict is not None else defaultdict(
+                    lambda: len(self.atom_dict))
+                self.bond_dict = self.bond_dict if self.bond_dict is not None else defaultdict(
+                    lambda: len(self.bond_dict))
+                self.fingerprint_dict = self.fingerprint_dict if self.fingerprint_dict is not None else defaultdict(
+                    lambda: len(self.fingerprint_dict))
+                self.edge_dict = self.edge_dict if self.edge_dict is not None else defaultdict(
+                    lambda: len(self.edge_dict))
                 atoms = create_atoms(mol, self.atom_dict)
                 ij_bond_dict = create_ij_bond_dict(mol, self.bond_dict)
                 fingerprints = extract_fingerprints(

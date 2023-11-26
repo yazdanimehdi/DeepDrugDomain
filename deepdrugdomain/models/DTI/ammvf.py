@@ -1,12 +1,21 @@
-from typing import Any, Sequence
+from typing import Any, List, Sequence, Tuple
 from torch import Tensor, nn
 import torch
 import math
+from deepdrugdomain.layers.modules.heads.linear import LinearHead
 from deepdrugdomain.layers.utils.layer_factory import LayerFactory
 from deepdrugdomain.layers.utils import ActivationFactory
 import torch.nn.functional as F
 from ..factory import ModelFactory
 from deepdrugdomain.layers import get_node_attr, change_node_attr
+from deepdrugdomain.metrics import Evaluator
+from torch.utils.data import DataLoader
+from torch.optim.optimizer import Optimizer
+from deepdrugdomain.schedulers import BaseScheduler
+from typing import Any, Callable, List, Optional, Sequence, Type
+from tqdm import tqdm
+import numpy as np
+from ..base_model import BaseModel
 
 
 @LayerFactory.register("ammvf_position_wise_ff")
@@ -107,7 +116,7 @@ class InteractionModel(nn.Module):
 
 
 @LayerFactory.register("ammvf_tensor_network_block")
-class TensorNetworkModule(torch.nn.Module):
+class TensorNetworkModule(nn.Module):
     """
     SimGNN Tensor Network module to calculate similarity vector.
     """
@@ -179,7 +188,7 @@ class TensorNetworkModule(torch.nn.Module):
 
 
 @ModelFactory.register("ammvf")
-class AMMVF(nn.Module):
+class AMMVF(BaseModel):
     def __init__(self,
                  n_fingerprint: int,
                  atom_dim: int,
@@ -194,9 +203,12 @@ class AMMVF(nn.Module):
                  encoder_block_args: dict,
                  decoder_block: str,
                  decoder_block_args: dict,
+                 head_input_dim: int,
+                 head_output_dim: int,
                  head_dims: Sequence[int],
                  head_dropout: Sequence[float],
                  head_activation: Sequence[str],
+                 head_normalization: Sequence[str],
                  inter_attention_block: str,
                  inter_attention_block_args: dict,
                  tensor_network_block: str,
@@ -234,7 +246,12 @@ class AMMVF(nn.Module):
         super().__init__()
 
         self.embed_fingerprint = nn.Embedding(n_fingerprint, atom_dim)
-
+        self.head_dims = head_dims
+        self.head_dropout = head_dropout
+        self.head_activation = head_activation
+        self.head_input_dim = head_input_dim
+        self.head_output_dim = head_output_dim
+        self.head_normalization = head_normalization
         # Ensure the dimensions sequence is correct
         ligand_graph_conv_layer_dims = [
             atom_dim] + ligand_graph_conv_layer_dims
@@ -278,23 +295,18 @@ class AMMVF(nn.Module):
         self.W_attention = nn.Linear(self.hid_dim, self.hid_dim)
 
         # Head layers for final prediction
-        self.head_dims = list(head_dims)
-        self.head = nn.Sequential(*[
-            nn.Sequential(nn.Linear(self.head_dims[i], self.head_dims[i + 1]),
-                          ActivationFactory.create(head_activation[i]),
-                          nn.Dropout(head_dropout[i])) for i in range(len(self.head_dims) - 1)
-        ])
+        self.head = LinearHead(self.head_input_dim, self.head_output_dim, self.head_dims,
+                               self.head_activation, self.head_dropout, self.head_normalization)
 
     def init_weights(self) -> None:
         stdv = 1. / math.sqrt(self.weight.size(1))
         self.weight.data.uniform_(-stdv, stdv)
 
-    def forward(self, protein1: Tensor, protein2: Tensor, compound2: Tensor, g: Any) -> Tensor:
+    def forward(self, g: Any, compound2: Tensor, protein1: Tensor, protein2: Tensor) -> Tensor:
         protein1 = torch.unsqueeze(protein1, dim=0)
         protein1 = self.fc1(protein1)
         compound1 = get_node_attr(g)
         compound1 = torch.unsqueeze(compound1, dim=0)
-        compound1 = compound1.to(torch.float64)
         compound1 = self.fc2(compound1)
         protein1_c, compound1_p = self.decoder(protein1, compound1)
         compound2 = compound2.to(torch.long)
@@ -316,3 +328,136 @@ class AMMVF(nn.Module):
         out = self.head(out_fc)
 
         return out
+
+    def collate(self, batch: List[Tuple[Any, Any, torch.Tensor]]) -> Tuple[Tuple[List[Any], List[Any]], torch.Tensor]:
+        """
+            Collate function for the AMMVF model.
+        """
+        # Unpacking the batch data
+        drug_graphs, drug_fingerprint, protein_1, protein_2, targets = zip(
+            *batch)
+        targets = torch.stack(targets, 0)
+
+        return drug_graphs, drug_fingerprint, protein_1, protein_2, targets
+
+    def predict(self, *args, **kwargs) -> Any:
+        """
+            Make predictions using the model.
+        """
+        return self.forward(*args, **kwargs)
+
+    def train_one_epoch(self, dataloader: DataLoader, device: torch.device, criterion: Callable, optimizer: Optimizer, num_epochs: int, scheduler: Optional[Type[BaseScheduler]] = None, evaluator: Optional[Type[Evaluator]] = None, grad_accum_steps: int = 1, clip_grad: Optional[str] = None, logger: Optional[Any] = None) -> Any:
+        """
+            Train the model for one epoch.
+        """
+        accum_steps = grad_accum_steps
+        last_accum_steps = len(dataloader) % accum_steps
+        updates_per_epoch = (len(dataloader) + accum_steps - 1) // accum_steps
+        num_updates = num_epochs * updates_per_epoch
+        last_batch_idx = len(dataloader) - 1
+        last_batch_idx_to_accum = len(dataloader) - last_accum_steps
+
+        losses = []
+        predictions = []
+        targets = []
+        self.train()
+        with tqdm(dataloader) as t:
+            t.set_description('Training')
+            for batch_idx, (drug_graph, drug_finger, protein_1, protein_2, target) in enumerate(t):
+                last_batch = batch_idx == last_batch_idx
+                need_update = last_batch or (batch_idx + 1) % accum_steps == 0
+                update_idx = batch_idx // accum_steps
+
+                if batch_idx >= last_batch_idx_to_accum:
+                    accum_steps = last_accum_steps
+
+                outs = []
+                for item in range(len(drug_finger)):
+                    protein1 = protein_1[item].to(device)
+                    protein2 = protein_2[item].to(device)
+                    drug = drug_finger[item].to(device)
+                    g = drug_graph[item].to(device)
+                    out = self.forward(g, drug, protein1, protein2)
+                    outs.append(out)
+
+                out = torch.stack(outs, dim=0).squeeze(1)
+
+                target = target.to(
+                    device).view(-1, 1).to(torch.float)
+
+                loss = criterion(out, target)
+                loss /= accum_steps
+
+                loss.backward()
+                losses.append(loss.detach().cpu().item())
+                predictions.append(out.detach().cpu())
+                targets.append(target.detach().cpu())
+                metrics = evaluator(predictions, targets) if evaluator else {}
+
+                metrics["loss"] = np.mean(losses) * accum_steps
+                lrl = [param_group['lr']
+                       for param_group in optimizer.param_groups]
+                lr = sum(lrl) / len(lrl)
+                metrics["lr"] = lr
+
+                t.set_postfix(**metrics)
+
+                if logger is not None:
+                    logger.log(metrics)
+
+                optimizer.step()
+
+                num_updates += 1
+                optimizer.zero_grad()
+
+                if scheduler is not None:
+                    scheduler.step_update(
+                        num_updates=num_updates, metric=metrics["loss"])
+
+    def evaluate(self, dataloader: DataLoader, device: torch.device, criterion: Callable, evaluator: Optional[Type[Evaluator]] = None, logger: Optional[Any] = None) -> Any:
+
+        losses = []
+        predictions = []
+        targets = []
+        self.eval()
+        with tqdm(dataloader) as t:
+            t.set_description('Testing')
+            for batch_idx, (drug_graph, drug_finger, protein_1, protein_2, target) in enumerate(t):
+                outs = []
+                for item in range(len(drug_finger)):
+                    protein1 = protein_1[item].to(device)
+                    protein2 = protein_2[item].to(device)
+                    drug = drug_finger[item].to(device)
+                    g = drug_graph[item].to(device)
+                    out = self.forward(g, drug, protein1, protein2)
+                    outs.append(out)
+
+                out = torch.stack(outs, dim=0).squeeze(1)
+                target = target.to(
+                    device).view(-1, 1).to(torch.float)
+
+                loss = criterion(out, target)
+                losses.append(loss.detach().cpu().item())
+                predictions.append(out.detach().cpu())
+                targets.append(target.detach().cpu())
+                metrics = evaluator(predictions, targets) if evaluator else {}
+                metrics["loss"] = np.mean(losses)
+                t.set_postfix(**metrics)
+
+        metrics = evaluator(predictions, targets) if evaluator else {}
+        metrics["loss"] = np.mean(losses)
+
+        metrics = {"val_" + str(key): val for key, val in metrics.items()}
+
+        if logger is not None:
+            logger.log(metrics)
+
+    def reset_head(self) -> None:
+        self.head = LinearHead(self.head_input_dim, self.head_output_dim, self.head_dims,
+                               self.head_dropout, self.head_activation, self.head_normalization)
+
+    def load_checkpoint(self, *args, **kwargs) -> None:
+        return super().load_checkpoint(*args, **kwargs)
+
+    def save_checkpoint(self, *args, **kwargs) -> None:
+        return super().save_checkpoint(*args, **kwargs)

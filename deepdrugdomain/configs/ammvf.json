@@ -55,20 +55,20 @@
                 "feed_forward": "ammvf_position_wise_ff",
                 "dropout": 0
             },
-            "head_dims": [
-                192,
-                64,
-                2
+            "head_input_dim":192,
+            "head_dims":[64], 
+            "head_output_dim":1,
+            "head_normalization": [
+                null,
+                null
             ],
             "head_dropout": [
-                0,
-                0,
-                0
+                0.0,
+                0.0 
             ],
             "head_activation": [
                 "relu",
-                "relu",
-                "relu"
+                "sigmoid"
             ],
             "inter_attention_block": "ammvf_interaction_block",
             "inter_attention_block_args": {

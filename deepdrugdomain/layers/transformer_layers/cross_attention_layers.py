@@ -29,6 +29,7 @@ class Attention_CA(nn.Module):
         }
 
         self.num_heads = num_heads
+        assert dim % num_heads == 0, "Embedding dimension must be divisible by number of heads"
         head_dim = dim // num_heads
 
         # Fill in missing parameters with defaults
@@ -60,7 +61,6 @@ class Attention_CA(nn.Module):
         q = self.q(q).reshape(B, N, 1, self.num_heads, C //
                               self.num_heads).permute(2, 0, 3, 1, 4)
         q = q * self.scale
-
         attn = (q @ k.transpose(-2, -1))
         attn = torch.squeeze(attn, dim=0)
 
@@ -101,7 +101,7 @@ class Block_CA(nn.Module):
     """
     # taken from https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/vision_transformer.py
 
-    def __init__(self, dim, num_heads, *kwargs):
+    def __init__(self, dim, num_heads, **kwargs):
         super().__init__()
         defaults = {
             "mlp_ratio": 4.,
@@ -128,7 +128,7 @@ class Block_CA(nn.Module):
         qk_scale = kwargs["qk_scale"]
         attn_drop = kwargs["attn_drop"]
         drop_path = kwargs["drop_path"]
-        act_layer = ActivationFactory.create(kwargs["act_layer"])
+        act_layer = kwargs["act_layer"]
         norm_layer = kwargs["norm_layer"]
         mlp_block = kwargs["Mlp_block"]
         attention_block = kwargs["Attention_block"]

@@ -123,3 +123,17 @@ class BaseModel(ABC, Module):
             None
         """
         pass
+
+    @abstractmethod
+    def collate(self, *args, **kwargs) -> Any:
+        """
+        Collate the data.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            Any: The collated data.
+        """
+        pass

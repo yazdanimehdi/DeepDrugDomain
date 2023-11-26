@@ -52,7 +52,6 @@ def ammvf_atom_featurizer(atom, explicit_H=False, use_chirality=True):
 
 
 def ammvf_mol_features(mol):
-    print(mol)
     atom_feat = np.zeros((mol.GetNumAtoms(), 34))
     for atom in mol.GetAtoms():
         atom_feat[atom.GetIdx(), :] = ammvf_atom_featurizer(atom)

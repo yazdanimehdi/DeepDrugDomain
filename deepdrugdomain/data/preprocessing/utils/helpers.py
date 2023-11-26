@@ -3592,7 +3592,6 @@ def calcPubChemFingerAll(s):
 # ------------------------------------
 
 
-
 def create_atoms(mol, atom_dict):
     atoms = [a.GetSymbol() for a in mol.GetAtoms()]
     for a in mol.GetAromaticAtoms():
@@ -3635,5 +3634,8 @@ def extract_fingerprints(atoms, ij_bond_dict, radius, fingerprint_dict, edge_dic
                     edge = edge_dict[(both_side, edge)]
                     _ij_edge_dict[i].append((j, edge))
             ij_edge_dict = _ij_edge_dict
+
+    if len(fingerprints) != len(atoms):
+        raise ValueError('The number of atoms and fingerprints are different.')
 
     return np.array(fingerprints)

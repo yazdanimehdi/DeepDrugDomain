@@ -417,8 +417,8 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
                 directory, f"{registered_name}_{file_prefix}_mapping_info.json"))
             ray.shutdown()
             nones = []
-            for item in all_mapping_data.keys():
-                if all_mapping_data[item] is None:
+            for item in mapping_info.keys():
+                if mapping_info[item] is None:
                     nones.append(item)
             self.none = nones
             # Return the mapping info and the processed data

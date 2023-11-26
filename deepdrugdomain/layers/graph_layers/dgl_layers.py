@@ -39,8 +39,8 @@ class GCN(nn.Module):
         # Default parameter values
         defaults = {
             'norm': 'both',
-            'weights': True,
-            'bias': True,
+            # 'weights': True,
+            # 'bias': True,
             'activation': "relu",
             'allow_zero_in_degree': False
         }
@@ -57,7 +57,7 @@ class GCN(nn.Module):
 
         self.layer = GraphConv(in_feats=in_feat, out_feats=out_feat, **kwargs)
         self.norm = normalization
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, g: dgl.DGLGraph) -> dgl.DGLGraph:
         """ Pass the graph and its features through the GCN layer. """
@@ -67,8 +67,7 @@ class GCN(nn.Module):
             features = F.normalize(features)
         features = self.dropout(features)
 
-        new_g = dgl.graph((g.edges()[0], g.edges()[1]))
-        del g
+        new_g = g
         new_g.ndata['h'] = features
 
         return new_g
@@ -110,7 +109,7 @@ class GAT(nn.Module):
         self.layer = GATConv(
             in_feats=in_feat, out_feats=out_feat, **kwargs)
         self.norm = normalization
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, g: dgl.DGLGraph) -> dgl.DGLGraph:
         """ Pass the graph and its features through the GAT layer. """
@@ -120,8 +119,7 @@ class GAT(nn.Module):
             features = F.normalize(features)
         features = self.dropout(features)
 
-        new_g = dgl.graph((g.edges()[0], g.edges()[1]))
-        del g
+        new_g = g
         new_g.ndata['h'] = features
 
         return new_g
@@ -155,7 +153,7 @@ class TAG(nn.Module):
 
         self.layer = TAGConv(in_feats=in_feat, out_feats=out_feat, **kwargs)
         self.norm = normalization
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, g: dgl.DGLGraph) -> dgl.DGLGraph:
         """ Pass the graph and its features through the TAG layer. """
@@ -165,8 +163,7 @@ class TAG(nn.Module):
             features = F.normalize(features)
         features = self.dropout(features)
 
-        new_g = dgl.graph((g.edges()[0], g.edges()[1]))
-        del g
+        new_g = g
         new_g.ndata['h'] = features
 
         return new_g

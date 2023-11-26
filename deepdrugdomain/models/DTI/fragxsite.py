@@ -1,5 +1,7 @@
 from functools import partial
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, Tuple
+from deepdrugdomain.layers.modules.graph_encoders.graph_conv import GraphConvEncoder
+from deepdrugdomain.layers.modules.heads.linear import LinearHead
 
 from deepdrugdomain.layers.utils import LayerFactory, ActivationFactory
 
@@ -85,35 +87,13 @@ class FragXSiteDTI(BaseModel):
         super().__init__()
         self.embedding_dim = embedding_dim
 
-        # Initialize protein graph convolution layers
-        p_dims = [protein_input_size] + list(protein_graph_conv_dims)
-        assert len(p_dims) - 1 == len(protein_conv_dropout_rate) == len(protein_graph_conv_kwargs) == len(
-            protein_conv_normalization), "The number of protein graph convolution layers parameters must be the same"
-        self.protein_graph_conv = nn.ModuleList([
-            LayerFactory.create(protein_graph_conv_layer,
-                                p_dims[i],
-                                p_dims[i + 1],
-                                normalization=protein_conv_normalization[i],
-                                dropout=protein_conv_dropout_rate[i],
-                                **protein_graph_conv_kwargs[i]) for i in range(len(p_dims) - 1)])
+        # Initialize target encoder layers
+        self.target_encoder = GraphConvEncoder(protein_graph_conv_layer, protein_input_size, embedding_dim, protein_graph_conv_dims, protein_graph_pooling,
+                                               protein_graph_pooling_kwargs, protein_graph_conv_kwargs, protein_conv_dropout_rate, protein_conv_normalization)
 
-        # Initialize drug graph convolution layers
-        l_dims = [ligand_input_size] + list(ligand_graph_conv_dims)
-        assert len(l_dims) - 1 == len(ligand_conv_dropout_rate) == len(ligand_graph_conv_kwargs) == len(
-            ligand_conv_normalization), "The number of ligand graph convolution layers parameters must be the same"
-        self.ligand_graph_conv = nn.ModuleList([
-            LayerFactory.create(ligand_graph_conv_layer,
-                                l_dims[i],
-                                l_dims[i + 1],
-                                normalization=ligand_conv_normalization[i],
-                                dropout=ligand_conv_dropout_rate[i],
-                                **ligand_graph_conv_kwargs[i]) for i in range(len(l_dims) - 1)])
-
-        # Graph pooling layers
-        self.pool_ligand = LayerFactory.create(
-            ligand_graph_pooling, **ligand_graph_pooling_kwargs)
-        self.pool_protein = LayerFactory.create(
-            protein_graph_pooling, **protein_graph_pooling_kwargs)
+        # Initialize ligand encoder layers
+        self.drug_encoder = GraphConvEncoder(ligand_graph_conv_layer, ligand_input_size, embedding_dim, ligand_graph_conv_dims, ligand_graph_pooling,
+                                             ligand_graph_pooling_kwargs, ligand_graph_conv_kwargs, ligand_conv_dropout_rate, ligand_conv_normalization)
 
         self.latent_query = nn.Parameter(
             torch.zeros(1, latent_space, embedding_dim))
@@ -145,19 +125,8 @@ class FragXSiteDTI(BaseModel):
             range(output_stages)
         ])
 
-        self.norm = LayerFactory.create(
-            head_normalization, embedding_dim) if head_normalization is not None else nn.Identity()
-        self.feature_info = [
-            dict(num_chs=embedding_dim, reduction=0, module='head')]
-        # Prediction layer
-        self.head = nn.ModuleList()
-        neuron_list = [self.embedding_dim] + list(head_dims)
-        for item in range(len(neuron_list) - 1):
-            self.head.append(nn.Dropout(head_dropout_rate))
-            self.head.append(
-                nn.Linear(neuron_list[item], neuron_list[item + 1]))
-            self.head.append(ActivationFactory.create(
-                head_activation_fn) if head_activation_fn else nn.Identity())
+        self.head = LinearHead(embedding_dim, 1, head_dims,
+                               head_activation_fn, head_dropout_rate, head_normalization)
 
         trunc_normal_(self.latent_query, std=.02)
 
@@ -181,31 +150,29 @@ class FragXSiteDTI(BaseModel):
 
     def forward(self, drug, target):
 
-        for module in self.protein_graph_conv:
-            target = module(target)
+        protein_rep = self.target_encoder(
+            target).view(1, -1, self.embedding_dim)
+        ligand_rep = self.drug_encoder(drug).view(1, -1, self.embedding_dim)
 
-        for module in self.ligand_graph_conv:
-            drug = module(drug)
-
-        protein_rep = self.pool_protein(target).view(1, -1, self.embedding_dim)
-        ligand_rep = self.pool_ligand(drug).view(1, -1, self.embedding_dim)
         x = self.latent_query.expand(1, -1, -1)
+
         attn_binding = []
         attn_frag = []
+
         for i, blk in enumerate(self.blocks_ca_input):
-            x,  attn = blk(x, protein_rep)
+            x,  attn = blk(x, protein_rep, return_attn=True)
             attn_binding.append(attn)
 
         for i, blk in enumerate(self.blocks):
-            x, _ = blk(x)
+            x = blk(x)
 
         for i, blk in enumerate(self.blocks_ca_output):
-            x, attn = blk(x, ligand_rep)
+            x, attn = blk(x, ligand_rep, return_attn=True)
             attn_frag.append(attn)
 
-        x = self.norm(x)
         x = torch.mean(x, dim=1)
-        return torch.sigmoid(self.head(x)), attn_binding, attn_frag
+
+        return self.head(x), attn_binding, attn_frag
 
     def predict(self, drug: List[Any], target: List[Any]) -> Any:
         """
@@ -217,7 +184,7 @@ class FragXSiteDTI(BaseModel):
             Returns:
             - Tensor: The predictions.
         """
-        return self.forward(drug, target)
+        return self.forward(drug, target)[0]
 
     def train_one_epoch(self, dataloader: DataLoader, device: torch.device, criterion: Callable, optimizer: Optimizer, num_epochs: int, scheduler: Optional[Type[BaseScheduler]] = None, evaluator: Optional[Type[Evaluator]] = None, grad_accum_steps: int = 1, clip_grad: Optional[str] = None, logger: Optional[Any] = None) -> Any:
 
@@ -296,11 +263,15 @@ class FragXSiteDTI(BaseModel):
             t.set_description('Testing')
             for batch_idx, (drug, protein, target) in enumerate(t):
                 outs = []
-                for item in range(len(drug)):
-                    d = drug[item].to(device)
-                    p = protein[item].to(device)
-                    out = self.forward(d, p)
-                    outs.append(out)
+                with torch.no_grad():
+                    for item in range(len(drug)):
+                        d = drug[item].to(device)
+                        p = protein[item].to(device)
+                        out = self.forward(d, p)
+                        if isinstance(out, tuple):
+                            out = out[0]
+
+                        outs.append(out)
 
                 out = torch.stack(outs, dim=0).squeeze(1)
                 target = target.to(
@@ -317,7 +288,7 @@ class FragXSiteDTI(BaseModel):
         metrics = evaluator(predictions, targets) if evaluator else {}
         metrics["loss"] = np.mean(losses)
 
-        metrics = {"val" + str(key): val for key, val in metrics.items()}
+        metrics = {"val_" + str(key): val for key, val in metrics.items()}
 
         if logger is not None:
             logger.log(metrics)

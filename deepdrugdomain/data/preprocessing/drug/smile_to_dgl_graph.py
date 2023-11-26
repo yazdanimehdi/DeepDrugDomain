@@ -45,11 +45,13 @@ class GraphFromSmilePreprocessor(BasePreprocessor):
 
     """
 
-    def __init__(self, node_featurizer: Callable, consider_hydrogen: bool = False, fragment: bool = False, **kwargs):
+    def __init__(self, node_featurizer: Callable, edge_featurizer: Optional[Callable] = None, consider_hydrogen: bool = False, fragment: bool = False, hops: int = 1,  **kwargs):
         super().__init__(**kwargs)
         self.consider_hydrogen = consider_hydrogen
         self.fragment = fragment
         self.node_featurizer = node_featurizer
+        self.edge_featurizer = edge_featurizer
+        self.hops = hops
 
     def preprocess(self, data: str) -> Optional[dgl.DGLGraph]:
         """
@@ -82,7 +84,7 @@ class GraphFromSmilePreprocessor(BasePreprocessor):
                 if frags is None:
                     return None
                 smile_graphs = [smiles_to_bigraph(
-                    f, add_self_loop=True, node_featurizer=self.node_featurizer) for f in frags]
+                    f, add_self_loop=True, node_featurizer=self.node_featurizer, edge_featurizer=self.edge_featurizer) for f in frags]
                 constructed_graphs = dgl.batch(smile_graphs)
 
             except Exception as e:
@@ -94,7 +96,11 @@ class GraphFromSmilePreprocessor(BasePreprocessor):
                     smile)) if self.consider_hydrogen else Chem.MolFromSmiles(smile)
                 # Construct a graph from the entire SMILES molecule.
                 constructed_graphs = mol_to_bigraph(
-                    mol, add_self_loop=True, node_featurizer=self.node_featurizer)
+                    mol, add_self_loop=True, node_featurizer=self.node_featurizer, edge_featurizer=self.edge_featurizer)
+
+                if self.hops > 1:
+                    constructed_graphs = dgl.khop_graph(
+                        constructed_graphs, self.hops)
 
             except Exception as e:
                 print(e)

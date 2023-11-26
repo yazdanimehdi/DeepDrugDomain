@@ -11,7 +11,7 @@ class LSTMEncoder(nn.Module):
         LSTM encoder module for encoding sequences of tokens.
     """
 
-    def __init__(self, input_size: int, output_size: int, hidden_size: int, num_layers: int, dropout: float, bidirectional: bool, **kwargs) -> None:
+    def __init__(self, input_size: int, hidden_size: int, num_layers: int, dropout: float, bidirectional: bool, batch_size: int = 1, **kwargs) -> None:
         """
             Initializes the LSTM encoder module.
             args:
@@ -25,15 +25,16 @@ class LSTMEncoder(nn.Module):
         """
         super().__init__()
         self.input_size = input_size
-        self.output_size = output_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.kwargs = kwargs
         self.bidirectional = bidirectional
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers=num_layers,
-                            dropout=dropout, bidirectional=bidirectional, **kwargs)
-        self.linear = nn.Linear(
-            hidden_size * (2 if bidirectional else 1), output_size)
+                            batch_first=True, dropout=dropout, bidirectional=bidirectional, **kwargs)
+        self.h0 = Variable(torch.zeros(
+            self.num_layers * (2 if self.bidirectional else 1), batch_size, self.hidden_size))
+        self.c0 = Variable(torch.zeros(
+            self.num_layers * (2 if self.bidirectional else 1), batch_size, self.hidden_size))
 
     def forward(self, x: Any) -> Any:
         """
@@ -43,10 +44,7 @@ class LSTMEncoder(nn.Module):
             returns:
                 Any: The encoded sequence.
         """
-        h0 = Variable(torch.zeros(self.num_layers,
-                      x.size(0), self.hidden_size))
-        c0 = Variable(torch.zeros(self.num_layers,
-                      x.size(0), self.hidden_size))
-        output, _ = self.lstm(x, (h0, c0))
 
-        return self.linear(output[-1])
+        output, (self.h0, self.c0) = self.lstm(x, (self.h0, self.c0))
+
+        return output

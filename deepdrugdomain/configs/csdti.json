@@ -1,0 +1,63 @@
+{
+    "model": {
+        "default": {
+            "num_features_xd": 74,
+            "num_features_xt": 25,
+            "graph_dim": 32,
+            "embedding_dim": 512,
+            "output_dim": 128,
+            "ligand_graph_conv_11_layer": ["dgl_gcn"],
+            "ligand_graph_conv_11_layer_args": [{}],
+            "ligand_graph_conv_11_layer_dims": [],
+            "ligand_graph_conv_11_dropout_rate": [0.0],
+            "ligand_graph_conv_11_normalization": [false],
+
+            "ligand_graph_conv_12_layer": ["dgl_gcn"],
+            "ligand_graph_conv_12_layer_args": [{}],
+            "ligand_graph_conv_12_layer_dims": [],
+            "ligand_graph_conv_12_dropout_rate": [0.0],
+            "ligand_graph_conv_12_normalization": [false],
+
+            "ligand_graph_conv_21_layer": ["dgl_gcn"],
+            "ligand_graph_conv_21_layer_args": [{}],
+            "ligand_graph_conv_21_layer_dims": [],
+            "ligand_graph_conv_21_dropout_rate": [0.0],
+            "ligand_graph_conv_21_normalization": [false],
+
+            "ligand_graph_conv_22_layer": ["dgl_gcn"],
+            "ligand_graph_conv_22_layer_args": [{}],
+            "ligand_graph_conv_22_layer_dims": [],
+            "ligand_graph_conv_22_dropout_rate": [0.0],
+            "ligand_graph_conv_22_normalization": [false],
+
+            "ligand_pooling_layer_type": "dgl_avgpool",
+            "ligand_pooling_layer_kwargs": {},
+
+            "linear_activations": "relu",
+            "linear_dropout": 0.2,
+            "protein_sequence_length": 1200,
+            "protein_conv_out_channels": 64,
+            "protein_conv_kernel_size": 1,
+
+
+            "protein_encoder_block": "conv_sequence_encoder",
+            "protein_encoder_block_args": {
+                "hidden_dims": [512, 512, 512],
+                "conv_kernel_sizes": [3, 3, 3],
+                "dropout_rate": 0.0,
+                "scaling_factor": 0.5
+            },
+
+            "attention_interaction_layer": "transformer_cross_attention",
+            "attention_interaction_layer_args": {
+                "num_heads": 1
+            },
+
+            "head_output_dim": 1 ,
+            "head_dims": [1024, 1024, 256],
+            "head_dropout": [0.2, 0.2, 0.2, 0.2] ,
+            "head_activation": ["relu", "relu", "relu", "sigmoid"] ,
+            "head_normalization": [null, null, null, null] 
+        }
+    }
+}
