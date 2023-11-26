@@ -51,11 +51,76 @@ The [example](./examples/) folder contains a collection of scripts and notebooks
 
 ### Other Functionalities
 
-### Documentation
+## Supported Preprocessings
+
+The following table lists the preprocessing methods supported by the package, detailing the data conversion, settings options, and the models that use them:
+
+| Preprocessing Method | Converts Data From | Converts Data To | Settings                                  | Used in Models    |
+| -------------------- | ------------------ | ---------------- | ----------------------------------------- | ----------------- |
+| Preprocess1          | Data Format 1      | Data Format A    | Setting1: value, Setting2: value          | Model1, Model2    |
+| Preprocess2          | Data Format 2      | Data Format B    | Setting3: range, Setting4: [option1, ...] | Model3            |
+| Preprocess3          | Data Format 3      | Data Format C    | Setting5: value                           | Model2, Model4    |
+| ...                  | ...                | ...              | ...                                       | ...               |
+
+### Usage Example
+```python
+import deepdrugdomain as ddd
+from dgllife.utils import CanonicalAtomFeaturizer
+
+feat = CanonicalAtomFeaturizer() 
+preprocess_drug = ddd.data.PreprocessingObject(attribute="SMILES", preprocessing_type="smile_to_dgl_graph", preprocessing_settings={
+                                               "fragment": False, "node_featurizer": feat}, in_memory=True, online=False)
+```
+
+## Supported Datasets
+
+The following table provides information about the datasets supported by our package:
+
+| Dataset Name  | Description                                      | Use Case                   |
+| ------------- | ------------------------------------------------ | -------------------------- |
+| Dataset1      | Brief description of what Dataset1 consists of. | Use case of Dataset1.      |
+| Dataset2      | Brief description of what Dataset2 consists of. | Use case of Dataset2.      |
+| Dataset3      | Brief description of what Dataset3 consists of. | Use case of Dataset3.      |
+| ...           | ...                                              | ...                        |
+
+### Supported Split Methods
+
+All datasets listed above support the following split methods:
+- Method1 (e.g., Random Split)
+- Method2 (e.g., Stratified Split)
+- Method3 (e.g., Time-based Split)
+
+
+### Usage Example
+```python
+import deepdrugdomain as ddd
+
+# Define PreprocessorObject
+preprocess = ...
+
+# Load dataset
+dataset = ddd.data.DatasetFactory.create("human", file_paths="data/human/", preprocesses=preprocesses) 
+datasets = dataset(split_method="random_split"), frac=[0.8, 0.1, 0.1], seed=4)
+```
+
+## Supported Models and Datasets
+
+The following table showcases the models supported by our package and the datasets each model is compatible with:
+
+| Model          | Supported Datasets          |
+| -------------- | --------------------------- |
+| Model1         | Dataset1, Dataset2          |
+| Model2         | Dataset3, Dataset4, Dataset5|
+| Model3         | Dataset6                    |
+| ...            | ...                         |
+
+
+
+## Documentation
 For now please read the docstring inside the module for more information.
 
-### Contributing
+## Contributing
 We welcome contributions to DeepDrugDomain! Please check out our [Contribution Guidelines](CONTRIBUTING.md) for more details on how to contribute.
 
-### Citation
+## Citation
 We don't have a paper yet!
