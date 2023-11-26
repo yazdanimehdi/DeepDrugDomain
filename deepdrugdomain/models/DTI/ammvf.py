@@ -6,6 +6,7 @@ from deepdrugdomain.layers.utils.layer_factory import LayerFactory
 from deepdrugdomain.layers.utils import ActivationFactory
 import torch.nn.functional as F
 from ..factory import ModelFactory
+from deepdrugdomain.layers import get_node_attr, change_node_attr
 
 
 @LayerFactory.register("ammvf_position_wise_ff")
@@ -291,18 +292,20 @@ class AMMVF(nn.Module):
     def forward(self, protein1: Tensor, protein2: Tensor, compound2: Tensor, g: Any) -> Tensor:
         protein1 = torch.unsqueeze(protein1, dim=0)
         protein1 = self.fc1(protein1)
-        compound1 = g.ndata['h']
+        compound1 = get_node_attr(g)
         compound1 = torch.unsqueeze(compound1, dim=0)
         compound1 = compound1.to(torch.float64)
         compound1 = self.fc2(compound1)
         protein1_c, compound1_p = self.decoder(protein1, compound1)
         compound2 = compound2.to(torch.long)
         compound2 = self.embed_fingerprint(compound2)
+        g_new = change_node_attr(g, compound2)
 
         for layer in self.ligand_graph_conv_layer:
-            compound2 = layer(g, compound2)
-            compound2 = compound2.mean(dim=1)
+            g_new = layer(g_new)
+            g_new = change_node_attr(g_new, get_node_attr(g_new).mean(dim=1))
 
+        compound2 = get_node_attr(g_new)
         compound2 = self.fc2(compound2.unsqueeze(0))
         protein2 = self.encoder(protein2.unsqueeze(0))
         com_att, pro_att = self.inter_att(compound2, protein2)

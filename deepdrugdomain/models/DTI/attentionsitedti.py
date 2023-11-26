@@ -325,18 +325,15 @@ class AttentionSiteDTI(BaseModel):
             Returns:
             - Tuple[Tensor, Tensor]: Protein and ligand representations after convolution and pooling.
         """
-        feature_protein = target.ndata['h']
-        feature_smile = drug.ndata['h']
+
         for module in self.protein_graph_conv:
-            feature_protein = module(target, feature_protein)
+            target = module(target)
 
         for module in self.ligand_graph_conv:
-            feature_smile = module(drug, feature_smile)
+            drug = module(drug)
 
-        protein_rep = self.pool_protein(
-            target, feature_protein).view(-1, self.embedding_dim)
-        ligand_rep = self.pool_ligand(
-            drug, feature_smile).view(-1, self.embedding_dim)
+        protein_rep = self.pool_protein(target).view(-1, self.embedding_dim)
+        ligand_rep = self.pool_ligand(drug).view(-1, self.embedding_dim)
 
         return protein_rep, ligand_rep
 
@@ -442,6 +439,10 @@ class AttentionSiteDTI(BaseModel):
                     d = drug[item].to(device)
                     p = protein[item].to(device)
                     out = self.forward(d, p)
+
+                    if isinstance(out, tuple):
+                        out = out[0]
+
                     outs.append(out)
 
                 out = torch.stack(outs, dim=0).squeeze(1)

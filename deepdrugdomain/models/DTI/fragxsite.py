@@ -1,17 +1,25 @@
 from functools import partial
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 from deepdrugdomain.layers.utils import LayerFactory, ActivationFactory
 
 from ..factory import ModelFactory
+from ..base_model import BaseModel
 import torch
 from torch import nn
 import torch.nn.functional as F
 from deepdrugdomain.utils.weight_init import trunc_normal_
+from deepdrugdomain.metrics import Evaluator
+from torch.utils.data import DataLoader
+from torch.optim.optimizer import Optimizer
+from deepdrugdomain.schedulers import BaseScheduler
+from typing import Any, Callable, List, Optional, Sequence, Type
+from tqdm import tqdm
+import numpy as np
 
 
 @ModelFactory.register('fragxsitedti')
-class FragXSiteDTI(nn.Module):
+class FragXSiteDTI(BaseModel):
     def __init__(self,
                  protein_graph_conv_layer: str,
                  ligand_graph_conv_layer: str,
@@ -171,19 +179,16 @@ class FragXSiteDTI(nn.Module):
     def get_classifier(self):
         return self.head
 
-    def forward(self, g):
-        feature_protein = g[0].ndata['h']
-        feature_smile = g[1].ndata['h']
+    def forward(self, drug, target):
+
         for module in self.protein_graph_conv:
-            feature_protein = module(g[0], feature_protein)
+            target = module(target)
 
         for module in self.ligand_graph_conv:
-            feature_smile = module(g[1], feature_smile)
+            drug = module(drug)
 
-        protein_rep = self.pool_protein(
-            g[0], feature_protein).view(1, -1, self.embedding_dim)
-        ligand_rep = self.pool_ligand(
-            g[1], feature_smile).view(1, -1, self.embedding_dim)
+        protein_rep = self.pool_protein(target).view(1, -1, self.embedding_dim)
+        ligand_rep = self.pool_ligand(drug).view(1, -1, self.embedding_dim)
         x = self.latent_query.expand(1, -1, -1)
         attn_binding = []
         attn_frag = []
@@ -200,4 +205,128 @@ class FragXSiteDTI(nn.Module):
 
         x = self.norm(x)
         x = torch.mean(x, dim=1)
-        return torch.sigmoid(self.head(x))
+        return torch.sigmoid(self.head(x)), attn_binding, attn_frag
+
+    def predict(self, drug: List[Any], target: List[Any]) -> Any:
+        """
+            Make predictions using the model.
+
+            Parameters:
+            - g (tuple): A tuple containing the drug and target graphs.
+
+            Returns:
+            - Tensor: The predictions.
+        """
+        return self.forward(drug, target)
+
+    def train_one_epoch(self, dataloader: DataLoader, device: torch.device, criterion: Callable, optimizer: Optimizer, num_epochs: int, scheduler: Optional[Type[BaseScheduler]] = None, evaluator: Optional[Type[Evaluator]] = None, grad_accum_steps: int = 1, clip_grad: Optional[str] = None, logger: Optional[Any] = None) -> Any:
+
+        accum_steps = grad_accum_steps
+        last_accum_steps = len(dataloader) % accum_steps
+        updates_per_epoch = (len(dataloader) + accum_steps - 1) // accum_steps
+        num_updates = num_epochs * updates_per_epoch
+        last_batch_idx = len(dataloader) - 1
+        last_batch_idx_to_accum = len(dataloader) - last_accum_steps
+
+        losses = []
+        predictions = []
+        targets = []
+        self.train()
+        with tqdm(dataloader) as t:
+            t.set_description('Training')
+            for batch_idx, (drug, protein, target) in enumerate(t):
+                last_batch = batch_idx == last_batch_idx
+                need_update = last_batch or (batch_idx + 1) % accum_steps == 0
+                update_idx = batch_idx // accum_steps
+
+                if batch_idx >= last_batch_idx_to_accum:
+                    accum_steps = last_accum_steps
+
+                outs = []
+                for item in range(len(drug)):
+                    d = drug[item].to(device)
+                    p = protein[item].to(device)
+                    out = self.forward(d, p)
+
+                    if isinstance(out, tuple):
+                        out = out[0]
+
+                    outs.append(out)
+
+                out = torch.stack(outs, dim=0).squeeze(1)
+                target = target.to(
+                    device).view(-1, 1).to(torch.float)
+
+                loss = criterion(out, target)
+                loss /= accum_steps
+
+                loss.backward()
+                losses.append(loss.detach().cpu().item())
+                predictions.append(out.detach().cpu())
+                targets.append(target.detach().cpu())
+                metrics = evaluator(predictions, targets) if evaluator else {}
+
+                metrics["loss"] = np.mean(losses) * accum_steps
+                lrl = [param_group['lr']
+                       for param_group in optimizer.param_groups]
+                lr = sum(lrl) / len(lrl)
+                metrics["lr"] = lr
+
+                t.set_postfix(**metrics)
+
+                if logger is not None:
+                    logger.log(metrics)
+
+                optimizer.step()
+
+                num_updates += 1
+                optimizer.zero_grad()
+
+                if scheduler is not None:
+                    scheduler.step_update(
+                        num_updates=num_updates, metric=metrics["loss"])
+
+    def evaluate(self, dataloader: DataLoader, device: torch.device, criterion: Callable, evaluator: Optional[Type[Evaluator]] = None, logger: Optional[Any] = None) -> Any:
+
+        losses = []
+        predictions = []
+        targets = []
+        self.eval()
+        with tqdm(dataloader) as t:
+            t.set_description('Testing')
+            for batch_idx, (drug, protein, target) in enumerate(t):
+                outs = []
+                for item in range(len(drug)):
+                    d = drug[item].to(device)
+                    p = protein[item].to(device)
+                    out = self.forward(d, p)
+                    outs.append(out)
+
+                out = torch.stack(outs, dim=0).squeeze(1)
+                target = target.to(
+                    device).view(-1, 1).to(torch.float)
+
+                loss = criterion(out, target)
+                losses.append(loss.detach().cpu().item())
+                predictions.append(out.detach().cpu())
+                targets.append(target.detach().cpu())
+                metrics = evaluator(predictions, targets) if evaluator else {}
+                metrics["loss"] = np.mean(losses)
+                t.set_postfix(**metrics)
+
+        metrics = evaluator(predictions, targets) if evaluator else {}
+        metrics["loss"] = np.mean(losses)
+
+        metrics = {"val" + str(key): val for key, val in metrics.items()}
+
+        if logger is not None:
+            logger.log(metrics)
+
+    def reset_head(self) -> None:
+        pass
+
+    def load_checkpoint(self, *args, **kwargs) -> None:
+        return super().load_checkpoint(*args, **kwargs)
+
+    def save_checkpoint(self, *args, **kwargs) -> None:
+        return super().save_checkpoint(*args, **kwargs)

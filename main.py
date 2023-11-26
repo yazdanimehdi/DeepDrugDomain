@@ -82,7 +82,7 @@ def main(args):
     optimizer = OptimizerFactory.create(
         "adamw", model.parameters(), lr=1e-3, weight_decay=0.0)
     scheduler = SchedulerFactory.create(
-        "cosine", optimizer, warmup_epochs=5, warmup_lr=1e-5, num_epochs=200)
+        "cosine", optimizer, warmup_epochs=0, warmup_lr=1e-3, num_epochs=200)
     device = torch.device("cpu")
     model.to(device)
     train_evaluator = ddd.metrics.Evaluator(["accuracy_score"], threshold=0.5)

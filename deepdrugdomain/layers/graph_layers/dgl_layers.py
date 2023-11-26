@@ -20,6 +20,7 @@ Requirements:
 from ..utils import LayerFactory, ActivationFactory
 import torch
 from dgl.nn.pytorch import GraphConv, TAGConv, GATConv
+import dgl
 import torch.nn as nn
 import torch.nn.functional as F
 import warnings
@@ -58,15 +59,19 @@ class GCN(nn.Module):
         self.norm = normalization
         self.dropout = nn.Dropout(dropout, inplace=True)
 
-    def forward(self, g, features: torch.Tensor) -> torch.Tensor:
+    def forward(self, g: dgl.DGLGraph) -> dgl.DGLGraph:
         """ Pass the graph and its features through the GCN layer. """
-
+        features = g.ndata['h']
         features = self.layer(g, features)
         if self.norm:
             features = F.normalize(features)
         features = self.dropout(features)
 
-        return features
+        new_g = dgl.graph((g.edges()[0], g.edges()[1]))
+        del g
+        new_g.ndata['h'] = features
+
+        return new_g
 
 
 @LayerFactory.register('dgl_gat')
@@ -107,14 +112,19 @@ class GAT(nn.Module):
         self.norm = normalization
         self.dropout = nn.Dropout(dropout, inplace=True)
 
-    def forward(self, g, features: torch.Tensor) -> torch.Tensor:
+    def forward(self, g: dgl.DGLGraph) -> dgl.DGLGraph:
         """ Pass the graph and its features through the GAT layer. """
+        features = g.ndata['h']
         features = self.layer(g, features)
         if self.norm:
             features = F.normalize(features)
         features = self.dropout(features)
 
-        return features
+        new_g = dgl.graph((g.edges()[0], g.edges()[1]))
+        del g
+        new_g.ndata['h'] = features
+
+        return new_g
 
 
 @LayerFactory.register('dgl_tag')
@@ -147,11 +157,16 @@ class TAG(nn.Module):
         self.norm = normalization
         self.dropout = nn.Dropout(dropout, inplace=True)
 
-    def forward(self, g, features: torch.Tensor) -> torch.Tensor:
+    def forward(self, g: dgl.DGLGraph) -> dgl.DGLGraph:
         """ Pass the graph and its features through the TAG layer. """
+        features = g.ndata['h']
         features = self.layer(g, features)
         if self.norm:
             features = F.normalize(features)
         features = self.dropout(features)
 
-        return features
+        new_g = dgl.graph((g.edges()[0], g.edges()[1]))
+        del g
+        new_g.ndata['h'] = features
+
+        return new_g

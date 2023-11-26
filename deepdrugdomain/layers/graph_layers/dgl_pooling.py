@@ -22,6 +22,8 @@ from dgl.nn.pytorch.glob import MaxPooling, SumPooling, AvgPooling, GlobalAttent
 import torch.nn as nn
 from deepdrugdomain.utils.exceptions import MissingRequiredParameterError
 from ..utils.layer_factory import LayerFactory
+import dgl
+from torch import Tensor
 
 
 @LayerFactory.register('dgl_maxpool')
@@ -34,9 +36,10 @@ class MaxPoolLayer(nn.Module):
         super().__init__()
         self.layer = MaxPooling()
 
-    def forward(self, g, features):
+    def forward(self, graph: dgl.DGLGraph) -> Tensor:
         """ Perform max pooling on the graph. """
-        return self.layer(g, features)
+        features = graph.ndata['h']
+        return self.layer(graph, features)
 
 
 @LayerFactory.register('dgl_sumpool')
@@ -49,9 +52,10 @@ class SumPoolLayer(nn.Module):
         super().__init__()
         self.layer = SumPooling()
 
-    def forward(self, g, features):
+    def forward(self, graph: dgl.DGLGraph) -> Tensor:
         """ Perform sum pooling on the graph. """
-        return self.layer(g, features)
+        features = graph.ndata['h']
+        return self.layer(graph, features)
 
 
 @LayerFactory.register('dgl_avgpool')
@@ -64,9 +68,10 @@ class AvgPoolLayer(nn.Module):
         super().__init__()
         self.layer = AvgPooling()
 
-    def forward(self, g, features):
+    def forward(self, graph: dgl.DGLGraph) -> Tensor:
         """ Perform average pooling on the graph. """
-        return self.layer(g, features)
+        features = graph.ndata['h']
+        return self.layer(graph, features)
 
 
 @LayerFactory.register('dgl_attentionpool')
@@ -100,6 +105,7 @@ class AttentionPoolLayer(nn.Module):
 
         self.layer = GlobalAttentionPooling(feat_nn=feat_nn, gate_nn=gate_nn)
 
-    def forward(self, g, features):
+    def forward(self, graph: dgl.DGLGraph) -> Tensor:
         """ Perform attention pooling on the graph. """
-        return self.layer(g, features)
+        features = graph.ndata['h']
+        return self.layer(graph, features)
