@@ -91,10 +91,10 @@ def main(args):
     #     preprocess_protein1 + preprocess_protein2 + preprocess_label
 
     preprocess_drug1 = ddd.data.PreprocessingObject(attribute="SMILES", preprocessing_type="smile_to_dgl_graph", preprocessing_settings={
-        "fragment": False, "node_featurizer":  feat, "consider_hydrogen": False, "consider_hydrogen": True}, in_memory=True, online=True)
+        "fragment": False, "node_featurizer":  feat, "consider_hydrogen": False, "consider_hydrogen": True}, in_memory=True, online=False)
 
     preprocess_drug2 = ddd.data.PreprocessingObject(attribute="SMILES", preprocessing_type="smile_to_dgl_graph", preprocessing_settings={
-        "fragment": False, "node_featurizer":  feat, "consider_hydrogen": False, "hops": 2, "consider_hydrogen": True}, in_memory=True, online=True)
+        "fragment": False, "node_featurizer":  feat, "consider_hydrogen": False, "hops": 2, "consider_hydrogen": True}, in_memory=True, online=False)
 
     preprocess_protein = ddd.data.PreprocessingObject(
         attribute="Target_Seq", preprocessing_type="kmers", preprocessing_settings={"ngram": 1, "max_length": 1200}, in_memory=True, online=False)
@@ -105,6 +105,7 @@ def main(args):
     preprocesses = preprocess_drug1 + preprocess_drug2 + \
         preprocess_protein + preprocess_label
 
+    print(preprocesses)
     # preprocesses = preprocess_drug + preprocess_protein + preprocess_label
     dataset = ddd.data.DatasetFactory.create(
         "human", file_paths="data/human/", preprocesses=preprocesses)
@@ -133,16 +134,17 @@ def main(args):
         ["accuracy_score", "f1_score", "auc", "precision_score", "recall_score"], threshold=0.5)
     epochs = 3000
     accum_iter = 1
-
+    print(model.evaluate(data_loader_val, device,
+          criterion, evaluator=test_evaluator))
     for epoch in range(epochs):
         print(f"Epoch {epoch}:")
         model.train_one_epoch(data_loader_train, device, criterion,
                               optimizer, num_epochs=200, scheduler=scheduler, evaluator=train_evaluator, grad_accum_steps=accum_iter)
-    #     print(model.evaluate(data_loader_val, device,
-    #                          criterion, evaluator=test_evaluator))
+        print(model.evaluate(data_loader_val, device,
+                             criterion, evaluator=test_evaluator))
 
-    # print(model.evaluate(data_loader_test, device,
-    #                      criterion, evaluator=test_evaluator))
+    print(model.evaluate(data_loader_test, device,
+                         criterion, evaluator=test_evaluator))
 
     # scheduler.step()
     # test_func(model, data_loader_val, device)

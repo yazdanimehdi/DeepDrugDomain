@@ -2,6 +2,8 @@
 
 DeepDrugDomain is a comprehensive Python toolkit aimed at simplifying and accelerating the process of drug-target interaction (DTI) and drug-target affinity (DTA) prediction using deep learning. With a flexible preprocessing pipeline and modular design, DeepDrugDomain supports innovative research and development in computational drug discovery.
 
+
+
 ## Features
 
 - **Extensive Preprocessing Capabilities:** Quickly prepare datasets for modeling with a wide range of built-in preprocessing functions.
@@ -104,6 +106,7 @@ datasets = dataset(split_method="random_split"), frac=[0.8, 0.1, 0.1], seed=4)
 ```
 
 ## Supported Models and Datasets
+**Disclaimer**: This implementation of DeepDrugDomain is not an official version and may contain inaccuracies or differences compared to the original models. While efforts have been made to ensure reliability, the models provided may not perform at the same level as officially published versions and should be used with this understanding.
 
 The following table showcases the models supported by our package and the datasets each model is compatible with:
 

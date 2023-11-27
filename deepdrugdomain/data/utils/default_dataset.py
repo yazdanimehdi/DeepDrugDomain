@@ -68,7 +68,7 @@ class DrugProteinDataset(Dataset):
     def _initialize_preprocesses(self) -> List[Tuple[Any, Dict[Any, Any]]]:
         mapping = []
 
-        for attribute, preprocess, in_memory, online in self.preprocesses:
+        for attribute, preprocess_type, preprocess, in_memory, online in self.preprocesses:
             if attribute is None:
                 mapping.append((None, None))
                 continue
@@ -80,25 +80,34 @@ class DrugProteinDataset(Dataset):
                 mapping.append((attribute, None))
                 continue
 
-            if self._preprocessing_done(preprocess.__class__.__name__, attribute):
-                mapping_data = self._load_mapping(preprocess, attribute)
-                path = preprocess.get_saved_path(
-                    self.save_directory, attribute) if in_memory else None
-                processed_data = preprocess.load_preprocessed_to_memory(
-                    path) if in_memory else None
+            if self._preprocessing_done(preprocess_type, attribute):
+
+                mapping_data = self._load_mapping(
+                    preprocess, preprocess_type, attribute)
+                if in_memory:
+                    path = preprocess.get_saved_path(
+                        self.save_directory, f"{preprocess_type}_{attribute}")
+                    processed_data = preprocess.load_preprocessed_to_memory(
+                        path)
+
                 new_data = list(set(data) - set(mapping_data.keys()))
 
                 if len(new_data) > 0:
-                    info_dict = preprocess.update(
-                        processed_data, mapping_data, new_data, self.save_directory, in_memory, self.threads, attribute)
-                    mapping_data = info_dict['mapping_info'] if not in_memory else info_dict['processed_data']
-                    continue
+                    _ = preprocess.update(
+                        processed_data, mapping_data, new_data, self.save_directory, in_memory, self.threads, f"{preprocess_type}_{attribute}")
 
-                mapping_data = processed_data if in_memory else mapping_data
+                if not in_memory:
+                    mapping_data = self._load_mapping(
+                        preprocess_type, attribute)
+                else:
+                    path = preprocess.get_saved_path(
+                        self.save_directory, f"{preprocess_type}_{attribute}")
+                    mapping_data = preprocess.load_preprocessed_to_memory(path)
+                    _ = self._load_mapping(preprocess, preprocess_type, attribute)
 
             else:
                 info_dict = preprocess.process_and_get_info(
-                    data, self.save_directory, in_memory, self.threads, attribute)
+                    data, self.save_directory, in_memory, self.threads, f"{preprocess_type}_{attribute}")
                 mapping_data = info_dict['mapping_info'] if not in_memory else info_dict['processed_data']
 
             mapping.append((attribute, mapping_data))
@@ -117,7 +126,7 @@ class DrugProteinDataset(Dataset):
 
         return os.path.exists(mapping_path)
 
-    def _load_mapping(self, preprocess: BasePreprocessor, attribute: str, ) -> Dict[Any, Any]:
+    def _load_mapping(self, preprocess, preprocess_type: str, attribute: str, ) -> Dict[Any, Any]:
         """
         Load the mapping dictionary from the shard directory.
 
@@ -125,7 +134,7 @@ class DrugProteinDataset(Dataset):
         - Dict: mapping dictionary of the relevant data
         """
         mapping_path = os.path.join(self.save_directory,
-                                    f"{preprocess.__class__.__name__}_{attribute}_mapping_info.json")
+                                    f"{preprocess_type}_{attribute}_mapping_info.json")
 
         # Use Python's json module to load the mapping
         with open(mapping_path, 'r') as file:
@@ -149,7 +158,7 @@ class DrugProteinDataset(Dataset):
         combined_attributes = zip(
             self.preprocesses.online,
             self.mapping,
-            self.preprocesses.preprocessing_type
+            self.preprocesses.preprocess
         )
 
         # This list comprehension iteratively processes each row and checks if any
@@ -159,6 +168,7 @@ class DrugProteinDataset(Dataset):
         for online, mapping, pre_process in combined_attributes:
             none_col_list = pre_process.collect_invalid_data(
                 online, self.data[mapping[0]].unique())
+
             self.data = self.data[~self.data[mapping[0]].isin(none_col_list)]
 
     def __len__(self) -> int:
@@ -189,7 +199,7 @@ class DrugProteinDataset(Dataset):
         combined_attributes = zip(
             self.preprocesses.online,
             self.mapping,
-            self.preprocesses.preprocessing_type,
+            self.preprocesses.preprocess,
             self.preprocesses.in_memory
         )
 

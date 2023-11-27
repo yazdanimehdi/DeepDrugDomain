@@ -347,6 +347,7 @@ class CSDTI(BaseModel):
 
         if logger is not None:
             logger.log(metrics)
+        return metrics
 
     def reset_head(self) -> None:
         self.head = LinearHead(self.output_dim * 3, self.head_output_dim, self.head_dims,

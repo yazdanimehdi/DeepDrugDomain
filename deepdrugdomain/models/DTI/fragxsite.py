@@ -267,7 +267,8 @@ class FragXSiteDTI(BaseModel):
                     for item in range(len(drug)):
                         d = drug[item].to(device)
                         p = protein[item].to(device)
-                        out = self.forward(d, p)
+                        with torch.no_grad():
+                            out = self.forward(d, p)
                         if isinstance(out, tuple):
                             out = out[0]
 
@@ -292,6 +293,8 @@ class FragXSiteDTI(BaseModel):
 
         if logger is not None:
             logger.log(metrics)
+
+        return metrics
 
     def reset_head(self) -> None:
         pass

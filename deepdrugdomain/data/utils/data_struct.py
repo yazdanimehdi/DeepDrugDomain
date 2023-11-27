@@ -61,7 +61,7 @@ class PreprocessingObject:
     PreprocessingObject(attribute=['attr1', 'attr2', 'attr3'], preprocessing_type=['type1', 'type2', 'type3'], preprocessing_settings=[{'setting1': 10}, {'setting2': 20}, {'setting3': 30}], in_memory=[True, False, True], online=[False, True, False])
     """
 
-    def __init__(self, attribute: Union[str, List[str]], preprocessing_type: Union[str, List[str], List[BasePreprocessor]], preprocessing_settings: Union[Dict[str, Any], List[Dict[str, Any]]], in_memory: Union[bool, List[bool]] = True, online: Union[bool, List[bool]] = False) -> None:
+    def __init__(self, attribute: Union[str, List[str]], preprocessing_type: Union[str, List[str]], preprocessing_settings: Union[Dict[str, Any], List[Dict[str, Any]]], in_memory: Union[bool, List[bool]] = True, online: Union[bool, List[bool]] = False) -> None:
         """
         Initializes a new instance of the PreprocessingObject class.
 
@@ -100,13 +100,23 @@ class PreprocessingObject:
         self.preprocessing_settings = ensure_list(preprocessing_settings)
         self.in_memory = ensure_list(in_memory)
         self.online = ensure_list(online)
+        self.preprocess = []
 
-        self._validate_and_initialize()
+        self._check_same_type()
+        self.validate_and_initialize()
 
     def __repr__(self):
         return f"PreprocessingObject(attribute={self.attribute}, preprocessing_type={self.preprocessing_type}, preprocessing_settings={self.preprocessing_settings}, in_memory={self.in_memory}, online={self.online})"
 
-    def _validate_and_initialize(self):
+    def _check_same_type(self) -> None:
+        for idx1, (i, j) in enumerate(zip(self.attribute, self.preprocessing_type)):
+            for idx2, (k, l) in enumerate(zip(self.attribute, self.preprocessing_type)):
+                if idx1 != idx2 and i == k and j == l:
+                    new_name = self.preprocessing_type[idx2] + \
+                        f"_setting_{idx2}"
+                    self.preprocessing_type[idx2] = new_name
+
+    def validate_and_initialize(self):
         """
         Validates and initializes the preprocessing configuration.
 
@@ -124,10 +134,12 @@ class PreprocessingObject:
         assert len(self.attribute) == len(self.preprocessing_type) == len(self.preprocessing_settings) == len(
             self.in_memory) == len(self.online), "All attributes must have the same length"
 
+        self.preprocess = []
         for i, pre in enumerate(self.preprocessing_type):
-            if isinstance(pre, str):
-                self.preprocessing_type[i] = PreprocessorFactory.create(
-                    pre, **self.preprocessing_settings[i])
+            if "setting" in pre:
+                pre = pre.split("_setting")[0]
+            self.preprocess.append(PreprocessorFactory.create(
+                pre, **self.preprocessing_settings[i]))
 
     def __add__(self, other):
         if not isinstance(other, PreprocessingObject):
@@ -141,6 +153,8 @@ class PreprocessingObject:
         new_object.preprocessing_settings += other.preprocessing_settings
         new_object.in_memory += other.in_memory
         new_object.online += other.online
+        new_object.validate_and_initialize()
+        self._check_same_type()
         return new_object
 
     def __iadd__(self, other):
@@ -153,10 +167,12 @@ class PreprocessingObject:
         self.preprocessing_settings += other.preprocessing_settings
         self.in_memory += other.in_memory
         self.online += other.online
+        self._check_same_type()
+        self.validate_and_initialize()
         return self
 
     def __iter__(self):
-        return iter(zip(self.attribute, self.preprocessing_type, self.in_memory, self.online))
+        return iter(zip(self.attribute, self.preprocessing_type, self.preprocess, self.in_memory, self.online))
 
     def __len__(self):
         return len(self.attribute)

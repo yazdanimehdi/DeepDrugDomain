@@ -429,7 +429,8 @@ class AMMVF(BaseModel):
                     protein2 = protein_2[item].to(device)
                     drug = drug_finger[item].to(device)
                     g = drug_graph[item].to(device)
-                    out = self.forward(g, drug, protein1, protein2)
+                    with torch.no_grad():
+                        out = self.forward(g, drug, protein1, protein2)
                     outs.append(out)
 
                 out = torch.stack(outs, dim=0).squeeze(1)
@@ -451,6 +452,8 @@ class AMMVF(BaseModel):
 
         if logger is not None:
             logger.log(metrics)
+
+        return metrics
 
     def reset_head(self) -> None:
         self.head = LinearHead(self.head_input_dim, self.head_output_dim, self.head_dims,

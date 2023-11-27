@@ -320,11 +320,10 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
                str or None: Path to the saved file or None if saving or preprocessing failed.
         """
         processed = self.preprocess(data_point)
-        registered_name = self.__class__.__name__
         if processed is not None:
             # Assuming your save function accepts the base directory as a parameter
             path = os.path.join(
-                base_dir, f"{registered_name}_{prefix}_object_{idx}.bin")
+                base_dir, f"{prefix}_object_{idx}.bin")
             self.save_data(processed, path)
             return path
 
@@ -370,7 +369,6 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
         """
         data = self.data_preparations(data)
         ray.init(num_cpus=num_threads)
-        registered_name = self.__class__.__name__
         if in_memory:
             futures = {d: self._worker.remote(self, d) for d in data}
             all_processed_data, invalid_results = self._process(futures, data)
@@ -379,7 +377,7 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
             self.save_preprocessed_to_disk(
                 all_processed_data, directory, file_prefix)
             save_mapping(mapping_info, os.path.join(
-                directory, f"{registered_name}_{file_prefix}_mapping_info.json"))
+                directory, f"{file_prefix}_mapping_info.json"))
             ray.shutdown()
             # Return the mapping info and the processed data
             return {
@@ -393,7 +391,7 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
             all_processed_data, invalid_results = self._process(futures, data)
             self.none = invalid_results
             save_mapping(all_processed_data,
-                         os.path.join(directory, f"{registered_name}_{file_prefix}_mapping_info.json"))
+                         os.path.join(directory, f"{file_prefix}_mapping_info.json"))
             ray.shutdown()
             return {'mapping_info': all_processed_data}
 
@@ -404,22 +402,23 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
         """
         data = self.data_preparations(data)
         ray.init(num_cpus=num_threads)
-        registered_name = self.__class__.__name__
         if in_memory:
             futures = {d: self._worker.remote(self, d) for d in data}
             all_processed_data, invalid_results = self._process(futures, data)
+            self.none = invalid_results
             mapping_info = self.generate_mapping(data)
             mapping_info.update(old_mapping_data)
             all_processed_data.update(old_processed_data)
             self.save_preprocessed_to_disk(
                 all_processed_data, directory, file_prefix)
             save_mapping(mapping_info, os.path.join(
-                directory, f"{registered_name}_{file_prefix}_mapping_info.json"))
+                directory, f"{file_prefix}_mapping_info.json"))
             ray.shutdown()
             nones = []
             for item in mapping_info.keys():
                 if mapping_info[item] is None:
                     nones.append(item)
+
             self.none = nones
             # Return the mapping info and the processed data
             return {
@@ -434,7 +433,7 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
             all_mapping_data, invalid_results = self._process(futures, data)
             all_mapping_data.update(old_mapping_data)
             save_mapping(all_mapping_data,
-                         os.path.join(directory, f"{registered_name}_{file_prefix}_mapping_info.json"))
+                         os.path.join(directory, f"{file_prefix}_mapping_info.json"))
             ray.shutdown()
             nones = []
             for item in all_mapping_data.keys():
@@ -586,8 +585,7 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
            - path: The directory where the data should be saved.
            - file_prefix: Prefix to be added to the filename.
         """
-        registered_name = self.__class__.__name__
-        file_name = f"{registered_name}_{file_prefix}_all.pkl"
+        file_name = f"{file_prefix}_all.pkl"
 
         serialized_data = {self._serialize_key(key): self._serialize_value(
             value) for key, value in data.items()}
@@ -624,7 +622,6 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
             - str: Full path to the saved file.
 
         """
-        registered_name = self.__class__.__name__
-        file_name = f"{registered_name}_{prefix}_all.pkl"
+        file_name = f"{prefix}_all.pkl"
 
         return os.path.join(path, file_name)
