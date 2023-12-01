@@ -19,7 +19,7 @@ from typing import Any, Callable, List, Optional, Sequence, Type
 from tqdm import tqdm
 import numpy as np
 from dgllife.utils import CanonicalAtomFeaturizer, CanonicalBondFeaturizer
-
+from deepdrugdomain.data import PreprocessingList, PreprocessingObject
 
 @ModelFactory.register('fragxsitedti')
 class FragXSiteDTI(BaseModel):
@@ -306,6 +306,13 @@ class FragXSiteDTI(BaseModel):
     def save_checkpoint(self, *args, **kwargs) -> None:
         return super().save_checkpoint(*args, **kwargs)
 
-    def default_setup_helpers(self) -> Dict[str, Any]:
+    def default_preprocess(self, smile_attr, pdb_id_attr, label_attr) -> List[PreprocessingObject]:
         feat = CanonicalAtomFeaturizer()
-        return {"atom_featurizer": feat}
+        preprocess_drug = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="graph", preprocessing_settings={
+                                                   "fragment": True, "max_block": 6, "max_sr": 8, "min_frag_atom": 1, "node_featurizer": feat}, in_memory=True, online=False)
+        preprocess_protein = PreprocessingObject(attribute=pdb_id_attr, from_dtype="pdb_id", to_dtype="binding_pocket_graph", preprocessing_settings={
+                                                        "pdb_path": "data/pdb/", "protein_size_limit": 10000}, in_memory=False, online=False)
+        preprocess_label = PreprocessingObject(
+            attribute=label_attr, from_dtype="binary", to_dtype="binary_tensor", preprocessing_settings={}, in_memory=True, online=True)
+        
+        return [preprocess_drug, preprocess_protein, preprocess_label]

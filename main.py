@@ -1,7 +1,6 @@
 import argparse
 import numpy as np
 import torch
-from deepdrugdomain.models.DTA.attentiondta_tcbb import AttentionDTA
 from deepdrugdomain.optimizers.factory import OptimizerFactory
 from deepdrugdomain.schedulers.factory import SchedulerFactory
 from deepdrugdomain.data.collate import CollateFactory
@@ -105,20 +104,22 @@ def main(args):
 
     # preprocesses = preprocess_drug1 + preprocess_drug2 + preprocess_protein + preprocess_label
 
-    preprocess_drug = ddd.data.PreprocessingObject(attribute="SMILES", from_dtype="smile", to_dtype="encoding_tensor", preprocessing_settings={"all_chars": True, "max_sequence_length": 100}, in_memory=True, online=False)
-    preprocess_protein = ddd.data.PreprocessingObject(attribute="Target_Seq", from_dtype="protein_sequence", to_dtype="encoding_tensor", preprocessing_settings={"one_hot": False, "max_sequence_length": 1200, "amino_acids":"ACBEDGFIHKMLONQPSRTWVYXZ"}, in_memory=True, online=False)
-    preprocess_label = ddd.data.PreprocessingObject(
-        attribute="Label",  from_dtype="binary", to_dtype="binary_tensor", preprocessing_settings={}, in_memory=True, online=True)
-    preprocesses = preprocess_drug + preprocess_protein + preprocess_label
-    print(preprocesses)
+    # preprocess_drug = ddd.data.PreprocessingObject(attribute="SMILES", from_dtype="smile", to_dtype="encoding_tensor", preprocessing_settings={"all_chars": True, "max_sequence_length": 100}, in_memory=True, online=False)
+    # preprocess_protein = ddd.data.PreprocessingObject(attribute="Target_Seq", from_dtype="protein_sequence", to_dtype="encoding_tensor", preprocessing_settings={"one_hot": False, "max_sequence_length": 1200, "amino_acids":"ACBEDGFIHKMLONQPSRTWVYXZ"}, in_memory=True, online=False)
+    # preprocess_label = ddd.data.PreprocessingObject(
+    #     attribute="Label",  from_dtype="binary", to_dtype="binary_tensor", preprocessing_settings={}, in_memory=True, online=True)
     # preprocesses = preprocess_drug + preprocess_protein + preprocess_label
+    # print(preprocesses)
+    # preprocesses = preprocess_drug + preprocess_protein + preprocess_label
+
+    model = ModelFactory.create("csdti")
+    preprocesses = ddd.data.PreprocessingList(model.default_preprocess(
+        "SMILES", "Target_Seq", "Label"))
+    # model = AttentionDTA()
     dataset = ddd.data.DatasetFactory.create(
         "human", file_paths="data/human/", preprocesses=preprocesses)
     datasets = dataset(split_method="random_split",
                        frac=[0.8, 0.1, 0.1], seed=seed)
-    # model = ModelFactory.create("csdti")
-    model = AttentionDTA()
-
     collate_fn = model.collate
 
     data_loader_train = DataLoader(

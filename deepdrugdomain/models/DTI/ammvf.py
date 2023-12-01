@@ -468,3 +468,21 @@ class AMMVF(BaseModel):
 
     def default_setup_helpers(self) -> Dict[str, Any]:
         return {"atom_featurizer":  ddd.data.preprocessing.ammvf_mol_features}
+
+    def default_preprocess(self, smile_attr, target_seq_attr, label_attr) -> List[ddd.data.PreprocessingObject]:
+
+        preprocess_drug1 = ddd.data.PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="graph", preprocessing_settings={
+            "fragment": False, "node_featurizer":  ddd.data.preprocessing.ammvf_mol_features, "consider_hydrogen": True}, in_memory=True, online=False)
+
+        preprocess_drug2 = ddd.data.PreprocessingObject(attribute=smile_attr,  from_dtype="smile", to_dtype="fingerprint", preprocessing_settings={
+                                                        "method": "ammvf", "consider_hydrogen": True}, in_memory=True, online=False)
+
+        preprocess_protein1 = ddd.data.PreprocessingObject(attribute=target_seq_attr, from_dtype="protein_sequence", to_dtype="word2vec_tensor", preprocessing_settings={
+            "model_path": "data/human/word2vec.model", "vec_size": 100}, in_memory=True, online=False)
+        preprocess_protein2 = ddd.data.PreprocessingObject(
+            attribute=target_seq_attr,  from_dtype="protein_sequence", to_dtype="kmers_encoded_tensor", preprocessing_settings={"ngram": 3}, in_memory=True, online=False)
+
+        preprocess_label = ddd.data.PreprocessingObject(
+            attribute=label_attr, from_dtype="binary", to_dtype="binary_tensor", preprocessing_settings={}, in_memory=True, online=True)
+
+        return [preprocess_drug1, preprocess_drug2, preprocess_protein1, preprocess_protein2, preprocess_label]

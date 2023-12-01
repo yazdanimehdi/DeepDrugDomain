@@ -23,10 +23,9 @@ from typing import Any, Callable, List, Optional, Sequence, Type
 from tqdm import tqdm
 import numpy as np
 from ..base_model import BaseModel
-import networkx as nx
-import dgl
 from deepdrugdomain.utils import batch_graphs
-
+from deepdrugdomain.data import PreprocessingObject
+from dgllife.utils import CanonicalAtomFeaturizer
 
 @LayerFactory.register("conv_sequence_encoder")
 class ConvolutionalSequenceEncoder(nn.Module):
@@ -358,3 +357,19 @@ class CSDTI(BaseModel):
 
     def save_checkpoint(self, *args, **kwargs) -> None:
         return super().save_checkpoint(*args, **kwargs)
+
+    def default_preprocess(self, smile_attr, target_seq_attr, label_attr) -> List[PreprocessingObject]:
+        feat = CanonicalAtomFeaturizer()
+        preprocess_drug1 = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="graph", preprocessing_settings={
+            "fragment": False, "node_featurizer":  feat, "consider_hydrogen": False, "consider_hydrogen": True}, in_memory=True, online=False)
+
+        preprocess_drug2 = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="graph", preprocessing_settings={
+            "fragment": False, "node_featurizer":  feat, "consider_hydrogen": False, "hops": 2, "consider_hydrogen": True}, in_memory=True, online=False)
+
+        preprocess_protein = PreprocessingObject(
+            attribute=target_seq_attr, from_dtype="protein_sequence", to_dtype="kmers_encoded_tensor", preprocessing_settings={"ngram": 1, "max_length": 1200}, in_memory=True, online=False)
+
+        preprocess_label = PreprocessingObject(
+            attribute=label_attr,  from_dtype="binary", to_dtype="binary_tensor", preprocessing_settings={}, in_memory=True, online=True)
+
+        return [preprocess_drug1, preprocess_drug2, preprocess_protein, preprocess_label]

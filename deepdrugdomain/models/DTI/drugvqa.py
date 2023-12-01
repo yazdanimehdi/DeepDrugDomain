@@ -4,7 +4,7 @@ Reference:
 """
 
 from functools import partial
-from typing import Any, Callable, Optional, Sequence, Type
+from typing import Any, Callable, List, Optional, Sequence, Type
 import numpy as np
 
 from tqdm import tqdm
@@ -23,9 +23,11 @@ from deepdrugdomain.metrics import Evaluator
 from torch.utils.data import DataLoader
 from torch.optim.optimizer import Optimizer
 from deepdrugdomain.schedulers import BaseScheduler
-
+from deepdrugdomain.data import PreprocessingList, PreprocessingObject
 
 # Weird attention layer, but I guess it works!
+
+
 @LayerFactory.register('drugvqa_seq_attention')
 class DrugVQASequentialAttention(nn.Module):
     def __init__(self, num_heads: int, dim_input: int, dim_hidden: int, activation_fn: str = "tanh", ) -> None:
@@ -273,3 +275,13 @@ class DrugVQA(BaseModel):
 
     def save_checkpoint(self, *args, **kwargs) -> None:
         return super().save_checkpoint(*args, **kwargs)
+
+    def default_preprocess(self, smile_attr, pdb_id_attr, label_attr) -> List[PreprocessingObject]:
+        preprocess_drug = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="encoding_tensor", preprocessing_settings={
+            "max_sequence_length": 247}, in_memory=True, online=False)
+        preprocess_protein = PreprocessingObject(
+            attribute=pdb_id_attr, from_dtype="pdb_id", to_dtype="contact_map", preprocessing_settings={"pdb_path": "data/pdb/"}, in_memory=False, online=False)
+        preprocess_label = PreprocessingObject(
+            attribute=label_attr, from_dtype="binary", to_dtype="binary_tensor", preprocessing_settings={}, in_memory=True, online=True)
+
+        return [preprocess_drug, preprocess_protein, preprocess_label]

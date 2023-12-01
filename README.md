@@ -57,12 +57,36 @@ The [example](./examples/) folder contains a collection of scripts and notebooks
 
 The following table lists the preprocessing methods supported by the package, detailing the data conversion, settings options, and the models that use them:
 
+Ligand:
+
 | Preprocessing Method | Converts Data From | Converts Data To | Settings                                  | Used in Models    |
 | -------------------- | ------------------ | ---------------- | ----------------------------------------- | ----------------- |
-| Preprocess1          | Data Format 1      | Data Format A    | Setting1: value, Setting2: value          | Model1, Model2    |
-| Preprocess2          | Data Format 2      | Data Format B    | Setting3: range, Setting4: [option1, ...] | Model3            |
-| Preprocess3          | Data Format 3      | Data Format C    | Setting5: value                           | Model2, Model4    |
-| ...                  | ...                | ...              | ...                                       | ...               |
+| smiles_to_encoding          | smile     | encoding_tensor   | one_hot: bool, embedding_dim: Optional[int], max_sequence_length: Optional[int], replacement_dict: Dict[str, str], token_regex: Optional[str] , from_set: Optional[Dict[str, int]] | DrugVQA, AttentionDTA |
+| smile_to_graph          | smile    | graph    | node_featurizer: Callable, edge_featurizer: Optional[Callable], consider_hydrogen: bool, fragment: bool, hops: int | AMMVF, AttentionSiteDTI, FragXsiteDTI, CSDTI            |
+| smile_to_fingerprint          | smile     | fingerprint    | methods: str (['rdkit', 'morgan', 'daylight','ErG', 'rdkit2d', 'pubchem', 'ammvf', 'custom']),  radius: Optional[int], nBits: Optional[int], num_finger: Optional[int], atom_dict: Optional[AtomDictType], bond_dict: Optional[BondDictType], fingerprint_dict: Optional[FingerprintDictType],  edge_dict: Optional[Dict], consider_hydrogen: bool, custom_fingerprint: Optional[Callable],                         | AMMVF    |
+
+
+
+Protein:
+
+| Preprocessing Method | Converts Data From | Converts Data To | Settings                                  | Used in Models    |
+| -------------------- | ------------------ | ---------------- | ----------------------------------------- | ----------------- |
+| contact_map_from_pdb          | pdb_id      | contact_map    | pdb_path: str, method: str, distance_threshold: float, normalize_distance: bool| DrugVQA |
+| sequence_to_fingerprint          | protein_sequence     | fingerprint    | method: str (['quasi', 'aac', 'paac', 'ct', 'custom']) | DrugVQA-Sequence            |
+| kmers          | protein_sequence    | kmers_encoded_tensor   | ngram: int, word_dict: Optional[dict], max_length: Optional[int]                          | AMMVF, CSDTI   |
+| protein_pockets_to_dgl_graph                  | pdb_id                | binding_pocket_graph              | pdb_path: str, protein_size_limit: int                                       | AttentionSiteDTI, FragXsiteDTI             |
+|word2vec|protein_sequence|word2vec_tensor|model_path: str, vec_size: int, k: int, update_vocab: Optional[bool]| AMMVF
+|sequence_to_one_hot| protein_sequence|encoding_tensor| amino_acids: str, max_sequence_length: Optional[int], one_hot: bool| AttentionDTA
+
+Label:
+
+| Preprocessing Method | Converts Data From | Converts Data To | Settings                                  
+| -------------------- | ------------------ | ---------------- | ----------------------------------------- 
+| interaction_to_binary          | binary     | binary_tensor   |          []
+| ic50_to_binary          | ic50      | binary  | threshold: float
+| Kd_to_binary          | kd     | binary   | threshold: float                          
+| value_to_log       | float        | log           |                        []            
+
 
 ### Usage Example
 ```python
@@ -70,7 +94,7 @@ import deepdrugdomain as ddd
 from dgllife.utils import CanonicalAtomFeaturizer
 
 feat = CanonicalAtomFeaturizer() 
-preprocess_drug = ddd.data.PreprocessingObject(attribute="SMILES", preprocessing_type="smile_to_dgl_graph", preprocessing_settings={
+preprocess_drug = ddd.data.PreprocessingObject(attribute="SMILES", from_dtype="smile", to_dtype="graph", preprocessing_settings={
                                                "fragment": False, "node_featurizer": feat}, in_memory=True, online=False)
 ```
 
@@ -80,18 +104,23 @@ The following table provides information about the datasets supported by our pac
 
 | Dataset Name  | Description                                      | Use Case                   |
 | ------------- | ------------------------------------------------ | -------------------------- |
-| Dataset1      | Brief description of what Dataset1 consists of. | Use case of Dataset1.      |
-| Dataset2      | Brief description of what Dataset2 consists of. | Use case of Dataset2.      |
-| Dataset3      | Brief description of what Dataset3 consists of. | Use case of Dataset3.      |
-| ...           | ...                                              | ...                        |
+| Celegans      | ... | DTI      |
+| Human      | Brief description of what Dataset2 consists of. | DTI    |
+| DrugBankDTI      | Brief description of what Dataset3 consists of. | DTI     |
+| Kiba           | ...                                              | DTA, DTI                        |
+| Davis           | ...                                              | DTA, DTI                        |
+| IBM_BindingDB           | ...                                              | DTA, DTI                        |
+| BindingDB           | ...                                              | DTA, DTI                        |
+| DrugTargetCommon| ... | DTA, DTI|
+| All TDC Datasets           | ...                                              | All drug discovery Tasks                        |
 
 ### Supported Split Methods
 
 All datasets listed above support the following split methods:
-- Method1 (e.g., Random Split)
-- Method2 (e.g., Stratified Split)
-- Method3 (e.g., Time-based Split)
-
+- k_fold 
+- random_split
+- cold_split
+- scaffold_split
 
 ### Usage Example
 ```python
@@ -112,12 +141,18 @@ The following table showcases the models supported by our package and the datase
 
 | Model          | Supported Datasets          |
 | -------------- | --------------------------- |
-| Model1         | Dataset1, Dataset2          |
-| Model2         | Dataset3, Dataset4, Dataset5|
-| Model3         | Dataset6                    |
-| ...            | ...                         |
+| AttentionSiteDTI         | DTI, DTA          |
+| FragXsiteDTI         | DTI, DTA   |
+| DrugVQA         | DTI, DTA                    |
+| CSDTI     | DTI, DTA                            |
+| AMMVF | DTI, DTA   |
+| AttentionDTA| DTI, DTA    |
+| DeepDTA| DTI, DTA|
+| WideDTA|DTI, DTA   |
+| GraphDTA| DTI, DTA|
+| DGraphDTA| DTI, DTA|
 
-
+**Contribution**: We are actively looking to add new models to the package. Feel free to add any model to the package and shoot a pull request!
 
 ## Documentation
 For now please read the docstring inside the module for more information.
