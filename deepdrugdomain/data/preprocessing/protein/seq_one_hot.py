@@ -10,7 +10,7 @@ from torch.nn import functional as F
 AMINO_ACIDS = "ACDEFGHIKLMNPQRSTVWY"
 
 
-@PreprocessorFactory.register("sequence_to_one_hot")
+@PreprocessorFactory.register("sequence_to_one_hot", "protein_sequence", "encoding_tensor")
 class OneHotEncoderPreprocessor(BasePreprocessor):
     def __init__(self, max_sequence_length: Optional[int] = None, **kwargs) -> None:
         """

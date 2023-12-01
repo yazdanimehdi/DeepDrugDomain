@@ -20,7 +20,7 @@ from ..factory import PreprocessorFactory
 from ..utils import download_pdb
 
 
-@PreprocessorFactory.register('contact_map_from_pdb')
+@PreprocessorFactory.register('contact_map_from_pdb', 'pdb_id', 'contact_map')
 class ContactMapFromPDBPreprocessor(BasePreprocessor):
     def __init__(self, pdb_path: str, method: str = 'c_alpha', distance_threshold: float = 3.8, normalize_distance: bool = True, **kwargs):
         """

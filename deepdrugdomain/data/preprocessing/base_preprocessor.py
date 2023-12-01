@@ -290,6 +290,7 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
                Any: The prepared data.
         """
         return data
+    
 
     @ray.remote
     def _worker(self, data):

@@ -40,12 +40,12 @@ from .dataset_utils import ensure_list
 from tqdm import tqdm
 import requests
 from deepdrugdomain.models.factory import ModelFactory
-from .default_dataset import DrugProteinDataset
+from .default_dataset import DDDDataset
 from torch.utils.data import Dataset
 import torch
 import pickle
 from .split import random_split, cold_split, scaffold_split
-from .data_struct import PreprocessingObject
+from ..preprocessing.utils.preprocessing_data_struct import PreprocessingObject
 
 
 class AbstractDataset(ABC):
@@ -236,7 +236,7 @@ class CustomDataset(AbstractDataset):
                 dataset.append(None)
 
             else:
-                dataset = DrugProteinDataset(df, self.preprocesses,
+                dataset = DDDDataset(df, self.preprocesses,
                                              self.save_directory,
                                              self.threads)
             datasets.append(dataset)

@@ -125,7 +125,7 @@ def _get_constructed_graphs_for_pockets(pockets: list, m: Chem.Mol, am: np.ndarr
     return constructed_graphs
 
 
-@PreprocessorFactory.register("protein_pockets_to_dgl_graph")
+@PreprocessorFactory.register("protein_pockets_to_dgl_graph", "pdb_id", "binding_pocket_graph")
 class GraphFromPocketPreprocessor(BasePreprocessor):
     """
     Preprocessor to transform protein data into a graph representation using DGL.

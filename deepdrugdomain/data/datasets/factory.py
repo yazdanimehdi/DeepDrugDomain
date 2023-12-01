@@ -1,7 +1,7 @@
 from typing import Dict, Tuple, Type, TypeVar, List
 from ..utils.base_dataset import AbstractDataset
 from deepdrugdomain.utils import BaseFactory
-from ..utils.data_struct import PreprocessingObject
+from ..preprocessing.utils.preprocessing_data_struct import PreprocessingObject
 T = TypeVar('T', bound=AbstractDataset)
 
 

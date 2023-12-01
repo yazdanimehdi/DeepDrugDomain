@@ -1,7 +1,7 @@
 import os
 from typing import Dict, List, Optional, Tuple, Union
 from deepdrugdomain.data.utils import CustomDataset
-from deepdrugdomain.data.utils.data_struct import PreprocessingObject
+from deepdrugdomain.data.preprocessing.utils.preprocessing_data_struct import PreprocessingObject
 from ..factory import DatasetFactory
 
 

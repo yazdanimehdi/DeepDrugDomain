@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 
-@PreprocessorFactory.register("interaction_to_binary")
+@PreprocessorFactory.register("interaction_to_binary", "binary", "binary_tensor")
 class InteractionToBinary(BasePreprocessor):
     def __init__(self):
         super().__init__()
@@ -16,7 +16,7 @@ class InteractionToBinary(BasePreprocessor):
         return torch.tensor([int(data)])
 
 
-@PreprocessorFactory.register("value_to_binary")
+@PreprocessorFactory.register("value_to_binary", "float", "binary_tensor")
 class ValueToBinary(BasePreprocessor):
     def __init__(self, threshold: float):
         super().__init__()

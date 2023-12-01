@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple, Union, Callable
 from torch.nn import Module
+from torch.utils.data.dataloader import default_collate
 
 
 class BaseModel(ABC, Module):
@@ -124,7 +125,6 @@ class BaseModel(ABC, Module):
         """
         pass
 
-    @abstractmethod
     def collate(self, *args, **kwargs) -> Any:
         """
         Collate the data.
@@ -136,4 +136,4 @@ class BaseModel(ABC, Module):
         Returns:
             Any: The collated data.
         """
-        pass
+        return default_collate

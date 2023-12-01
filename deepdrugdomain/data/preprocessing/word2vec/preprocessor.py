@@ -7,9 +7,9 @@ import numpy as np
 import os
 
 
-@PreprocessorFactory.register("word2vec")
+@PreprocessorFactory.register("word2vec", from_dtype="protein_sequence", to_dtype="word2vec_tensor")
 class Word2VecPreprocessor(BasePreprocessor):
-    def __init__(self, model_path: str, vec_size: int, sentence_preprocessing: Optional[Callable] = seq_to_kmers, update_vocab: Optional[bool] = False, **kwargs):
+    def __init__(self, model_path: str, vec_size: int, k: int = 3, update_vocab: Optional[bool] = False, **kwargs):
         """
         A preprocessor class for generating Word2Vec embeddings for protein sequences.
 
@@ -31,7 +31,7 @@ class Word2VecPreprocessor(BasePreprocessor):
         """
         super().__init__(**kwargs)
         self.model_path = model_path
-        self.sentence_preprocessing = sentence_preprocessing
+        self.sentence_preprocessing = seq_to_kmers(k=k)
         self.vec_size = vec_size
         self.kwargs = kwargs
         self.update_vocab = update_vocab

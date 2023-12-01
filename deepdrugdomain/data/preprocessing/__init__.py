@@ -5,3 +5,4 @@ from .label import *
 from .protein import *
 from .word2vec import Word2VecPreprocessor
 from .featurizers import ammvf_mol_features
+from .utils import PreprocessingList, PreprocessingObject

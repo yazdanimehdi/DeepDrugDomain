@@ -32,7 +32,7 @@ from ..utils import GetQuasiSequenceOrder, CalculateAADipeptideComposition, GetP
 import numpy as np
 
 
-@PreprocessorFactory.register("sequence_to_fingerprint")
+@PreprocessorFactory.register("sequence_to_fingerprint", "protein_sequence", "fingerprint")
 class FingerprintFromSequencePreprocessor(BasePreprocessor):
     def __init__(self, method: str = 'quasi',
                  **kwargs):

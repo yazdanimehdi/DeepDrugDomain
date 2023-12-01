@@ -22,7 +22,7 @@ Example usage:
 hello world
 """
 
-from typing import Dict, TypeVar
+from typing import Dict, TypeVar, Tuple, Optional
 from .base_preprocessor import AbstractBasePreprocessor
 from deepdrugdomain.utils import BaseFactory
 
@@ -41,9 +41,10 @@ class PreprocessorFactory(BaseFactory):
     """
 
     _registry: Dict[str, T] = {}
+    _transform_helper: Dict[Tuple[str, str], str] = {}
 
     @classmethod
-    def register(cls, key: str):
+    def register(cls, key: str, from_dtype: str, to_dtype: str):
         """
         Decorator method for registering a preprocessor subclass to the factory's registry.
 
@@ -56,12 +57,13 @@ class PreprocessorFactory(BaseFactory):
                 raise TypeError(
                     f"Class {subclass.__name__} is not a subclass of AbstractBasePreprocessor")
             cls._registry[key] = subclass
+            cls._transform_helper[(from_dtype, to_dtype)] = key
             return subclass
 
         return decorator
 
     @classmethod
-    def create(cls, key: str, *args, **kwargs) -> T:
+    def create(cls, from_dtype: Optional[str] = None, to_dtype: Optional[str] = None, key: Optional[str] = None, *args, **kwargs) -> T:
         """
         Create and return an instance of the preprocessor.
 
@@ -70,10 +72,37 @@ class PreprocessorFactory(BaseFactory):
         :param kwargs: Keyword arguments for preprocessor initialization.
         :return: Instance of the preprocessor.
         """
-        if key is None:
-            return None
+        if from_dtype is None or to_dtype is None:
+            if key is None:
+                raise ValueError(
+                    "Either a key or from_dtype and to_dtype must be specified.")
+
+        if from_dtype is not None and to_dtype is not None:
+            if from_dtype == to_dtype:
+                return None
+
+            if (from_dtype, to_dtype) not in cls._transform_helper:
+                raise ValueError(
+                    f"Key for transformation from '{from_dtype}' to '{to_dtype}' not registered.")
+
+            key = cls._transform_helper[(from_dtype, to_dtype)]
 
         if key not in cls._registry:
             raise ValueError(f"Key '{key}' not registered.")
 
         return cls._registry[key](*args, **kwargs)
+
+    @classmethod
+    def get_preprocessor_name(cls, from_dtype: str, to_dtype: str) -> str:
+        """
+        Get the name of the preprocessor for the specified data type transformation.
+
+        :param from_dtype: Data type to be transformed from.
+        :param to_dtype: Data type to be transformed to.
+        :return: Name of the preprocessor.
+        """
+        if (from_dtype, to_dtype) not in cls._transform_helper:
+            raise ValueError(
+                f"Key for transformation from '{from_dtype}' to '{to_dtype}' not registered.")
+
+        return cls._transform_helper[(from_dtype, to_dtype)]

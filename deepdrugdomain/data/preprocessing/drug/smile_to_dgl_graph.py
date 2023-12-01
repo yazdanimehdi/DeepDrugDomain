@@ -32,7 +32,7 @@ def _process_smile_graph(smile: str, max_block: int, max_sr: int, min_frag_atoms
     return frags
 
 
-@PreprocessorFactory.register("smile_to_dgl_graph")
+@PreprocessorFactory.register("smile_to_dgl_graph", "smile", "graph")
 class GraphFromSmilePreprocessor(BasePreprocessor):
     """
     Preprocessor class to convert SMILES strings to DGLGraph objects.

@@ -55,7 +55,7 @@ BondDictType = Dict[str, int]
 FingerprintDictType = Dict[Union[int, tuple], int]
 
 
-@PreprocessorFactory.register("smile_to_fingerprint")
+@PreprocessorFactory.register("smile_to_fingerprint", "smile", "fingerprint")
 class FingerprintFromSmilePreprocessor(BasePreprocessor):
     def __init__(self, method: str = 'rdkit',
                  radius: Optional[int] = 2,

@@ -90,21 +90,19 @@ def main(args):
     # preprocesses = preprocess_drug1 + preprocess_drug2 + \
     #     preprocess_protein1 + preprocess_protein2 + preprocess_label
 
-    preprocess_drug1 = ddd.data.PreprocessingObject(attribute="SMILES", preprocessing_type="smile_to_dgl_graph", preprocessing_settings={
+    preprocess_drug1 = ddd.data.PreprocessingObject(attribute="SMILES", from_dtype="smile", to_dtype="graph", preprocessing_settings={
         "fragment": False, "node_featurizer":  feat, "consider_hydrogen": False, "consider_hydrogen": True}, in_memory=True, online=False)
 
-    preprocess_drug2 = ddd.data.PreprocessingObject(attribute="SMILES", preprocessing_type="smile_to_dgl_graph", preprocessing_settings={
+    preprocess_drug2 = ddd.data.PreprocessingObject(attribute="SMILES", from_dtype="smile", to_dtype="graph", preprocessing_settings={
         "fragment": False, "node_featurizer":  feat, "consider_hydrogen": False, "hops": 2, "consider_hydrogen": True}, in_memory=True, online=False)
 
     preprocess_protein = ddd.data.PreprocessingObject(
-        attribute="Target_Seq", preprocessing_type="kmers", preprocessing_settings={"ngram": 1, "max_length": 1200}, in_memory=True, online=False)
+        attribute="Target_Seq", from_dtype="protein_sequence", to_dtype="kmers_encoded_tensor", preprocessing_settings={"ngram": 1, "max_length": 1200}, in_memory=True, online=False)
 
     preprocess_label = ddd.data.PreprocessingObject(
-        attribute="Label", preprocessing_type="interaction_to_binary", preprocessing_settings={}, in_memory=True, online=True)
+        attribute="Label",  from_dtype="binary", to_dtype="binary_tensor", preprocessing_settings={}, in_memory=True, online=True)
 
-    preprocesses = preprocess_drug1 + preprocess_drug2 + \
-        preprocess_protein + preprocess_label
-
+    preprocesses = preprocess_drug1 + preprocess_drug2 + preprocess_protein + preprocess_label
     print(preprocesses)
     # preprocesses = preprocess_drug + preprocess_protein + preprocess_label
     dataset = ddd.data.DatasetFactory.create(

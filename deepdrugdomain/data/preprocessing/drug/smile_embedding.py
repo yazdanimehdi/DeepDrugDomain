@@ -18,8 +18,8 @@ REPLACEMENTS = {
 TOKEN_REGEX = r'(\[[^\[\]]{1,6}\])'
 
 
-@PreprocessorFactory.register('smiles_to_embedding')
-class SMILESToEmbeddingPreprocessor(BasePreprocessor):
+@PreprocessorFactory.register('smiles_to_encoding', 'smile', 'encoding_tensor')
+class SMILESToEncodingPreprocessor(BasePreprocessor):
     def __init__(self, one_hot: bool = False, embedding_dim: Optional[int] = None, max_sequence_length: Optional[int] = None, replacement_dict: Dict[str, str] = REPLACEMENTS, token_regex: str = TOKEN_REGEX, **kwargs):
         """
         Initializes the SMILESToEmbeddingPreprocessor with an embedding dimension and optional max sequence length for padding.
