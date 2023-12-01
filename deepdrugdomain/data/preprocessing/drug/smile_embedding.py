@@ -17,10 +17,19 @@ REPLACEMENTS = {
 # Define a tokenization pattern inspired by Olivecrona et al., 2017
 TOKEN_REGEX = r'(\[[^\[\]]{1,6}\])'
 
+CHARISOSMISET = {"<PAD>": 0, "#": 29, "%": 30, ")": 31, "(": 1, "+": 32, "-": 33, "/": 34, ".": 2,
+                 "1": 35, "0": 3, "3": 36, "2": 4, "5": 37, "4": 5, "7": 38, "6": 6,
+                 "9": 39, "8": 7, "=": 40, "A": 41, "@": 8, "C": 42, "B": 9, "E": 43,
+                 "D": 10, "G": 44, "F": 11, "I": 45, "H": 12, "K": 46, "M": 47, "L": 13,
+                 "O": 48, "N": 14, "P": 15, "S": 49, "R": 16, "U": 50, "T": 17, "W": 51,
+                 "V": 18, "Y": 52, "[": 53, "Z": 19, "]": 54, "\\": 20, "a": 55, "c": 56,
+                 "b": 21, "e": 57, "d": 22, "g": 58, "f": 23, "i": 59, "h": 24, "m": 60,
+                 "l": 25, "o": 61, "n": 26, "s": 62, "r": 27, "u": 63, "t": 28, "y": 64}
+
 
 @PreprocessorFactory.register('smiles_to_encoding', 'smile', 'encoding_tensor')
 class SMILESToEncodingPreprocessor(BasePreprocessor):
-    def __init__(self, one_hot: bool = False, embedding_dim: Optional[int] = None, max_sequence_length: Optional[int] = None, replacement_dict: Dict[str, str] = REPLACEMENTS, token_regex: str = TOKEN_REGEX, **kwargs):
+    def __init__(self, one_hot: bool = False, embedding_dim: Optional[int] = None, max_sequence_length: Optional[int] = None, replacement_dict: Dict[str, str] = REPLACEMENTS, token_regex: Optional[str] = TOKEN_REGEX, from_set: Optional[Dict[str, int]] = CHARISOSMISET, **kwargs):
         """
         Initializes the SMILESToEmbeddingPreprocessor with an embedding dimension and optional max sequence length for padding.
 
@@ -41,6 +50,12 @@ class SMILESToEncodingPreprocessor(BasePreprocessor):
         self.replacement_dict = replacement_dict
         self.token_regex = token_regex
         self.token_to_idx = None
+        self.from_set = False
+        if from_set is not None:
+            self.from_set = True
+            self.token_to_idx = from_set
+        else:
+            assert token_regex is not None, "Must specify token regex if all_chars is False"
 
     def tokenize_smiles(self, smiles: str) -> List[str]:
         """
@@ -65,6 +80,8 @@ class SMILESToEncodingPreprocessor(BasePreprocessor):
         returns:
             Any: The preprocessed data.
         """
+        if self.from_set:
+            return data
         final_letters = []
         for s in data:
             tokens = self.tokenize_smiles(s)
@@ -90,8 +107,11 @@ class SMILESToEncodingPreprocessor(BasePreprocessor):
                                     potential token type. Returns None if the SMILES string contains
                                     tokens not covered by the embedding.
         """
+        if not self.from_set:
+            tokens = self.tokenize_smiles(smiles)
+        else:
+            tokens = list(smiles)
 
-        tokens = self.tokenize_smiles(smiles)
         sequence_length = len(tokens)
         if self.one_hot:
             one_hot_matrix = np.zeros(
@@ -112,11 +132,12 @@ class SMILESToEncodingPreprocessor(BasePreprocessor):
                 # Pad the tensor if needed, pad is a tuple (pad_left, pad_right, pad_top, pad_bottom)
                 one_hot_tensor = F.pad(
                     one_hot_tensor, (0, 0, 0, padding_needed), 'constant', 0)
-                print(one_hot_tensor.shape)
         else:
             if self.max_sequence_length:
                 # Calculate how much padding is needed
                 padding_needed = self.max_sequence_length - sequence_length
+                if padding_needed < 0:
+                    return None
                 # Pad the tensor if needed, pad is a tuple (pad_left, pad_right, pad_top, pad_bottom)
                 tokens = tokens + ['<PAD>'] * padding_needed
 

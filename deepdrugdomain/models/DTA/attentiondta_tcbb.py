@@ -23,7 +23,7 @@ class MultiHeadAttention(nn.Module):
         self.tanh = nn.Tanh()
         self.d_a = nn.Linear(self.dim, self.dim * head)
         self.p_a = nn.Linear(self.dim, self.dim * head)
-        self.scale = torch.sqrt(torch.FloatTensor([self.conv * 3])).cuda()
+        self.scale = torch.sqrt(torch.FloatTensor([self.dim * 3]))
 
     def forward(self, drug, protein):
         bsz, d_ef, d_il = drug.shape
@@ -43,8 +43,8 @@ class MultiHeadAttention(nn.Module):
 
         return drug, protein
 
-
-class AttentionDTA(BaseModel):
+@ModelFactory.register('attentiondta_tcbb')
+class AttentionDTA_TCBB(BaseModel):
     def __init__(self,
                  protein_max_length: int = 1200,
 
@@ -53,8 +53,8 @@ class AttentionDTA(BaseModel):
                  protein_cnn_activation: List[str] = ['relu', 'relu', 'relu'],
                  protein_cnn_dropout: List[float] = [0.1, 0.1, 0.1],
                  protein_cnn_normalization: List[str] = [
-                     'batch', 'batch', 'batch'],
-                 protein_hidden_channels: List[int] = [32, 64, 96],
+                     'batch_norm1d', 'batch_norm1d', 'batch_norm1d'],
+                 protein_hidden_channels: List[int] = [32, 64],
 
                  drug_max_length: int = 100,
                  drug_kernel: List[int] = [4, 6, 8],
@@ -62,10 +62,10 @@ class AttentionDTA(BaseModel):
                  drug_cnn_activation: List[str] = ['relu', 'relu', 'relu'],
                  drug_cnn_dropout: List[float] = [0.1, 0.1, 0.1],
                  drug_cnn_normalization: List[str] = [
-                     'batch', 'batch', 'batch'],
-                 drug_hidden_channels: List[int] = [32, 64, 96],
+                     'batch_norm1d', 'batch_norm1d', 'batch_norm1d'],
+                 drug_hidden_channels: List[int] = [32, 64],
 
-                 cnn_out_channels: int = 32,
+                 cnn_out_channels: int = 96,
 
                  attention_layer: str = 'attentiondta_attention',
                  head_num: int = 8,
@@ -75,10 +75,11 @@ class AttentionDTA(BaseModel):
                  head_output_dim: int = 1,
                  head_dims: List[int] = [128],
                  head_activations: List[str] = ['relu', 'relu'],
-                 head_normalization: List[str] = ['batch', 'batch'],
+                 head_normalization: List[str] = [
+                     'batch_norm1d', 'batch_norm1d'],
                  head_dropout_rate: List[float] = [0.1, 0.1],
                  ):
-        super(AttentionDTA, self).__init__()
+        super(AttentionDTA_TCBB, self).__init__()
         self.dim = char_dim
         self.head_num = head_num
         self.drug_max_length = drug_max_length
@@ -102,8 +103,9 @@ class AttentionDTA(BaseModel):
             dropouts=protein_cnn_dropout,
             normalization=protein_cnn_normalization,
         )
+
         self.drug_pooling = nn.MaxPool1d(
-            self.drug_max_length - sum(self.drug_kernel) + len(self.drug_kernel))
+            self.drug_max_length - sum(self.drug_kernel) + len(self.drug_kernel) - 6)
 
         self.protein_cnn_encoder = CNNEncoder(
             input_channels=self.dim,
@@ -118,6 +120,8 @@ class AttentionDTA(BaseModel):
             dropouts=drug_cnn_dropout,
             normalization=drug_cnn_normalization,
         )
+        print(self.protein_max_length -
+              sum(self.protein_kernel) + len(self.protein_kernel))
         self.protein_pooling = nn.MaxPool1d(
             self.protein_max_length - sum(self.protein_kernel) + len(self.protein_kernel))
 
@@ -130,7 +134,7 @@ class AttentionDTA(BaseModel):
         self.head_normalization = head_normalization
         self.head_dropout_rate = head_dropout_rate
 
-        self.head = LinearHead(self.dim * 2, self.head_output_dim, self.head_dims,
+        self.head = LinearHead(self.cnn_out_channels * 2, self.head_output_dim, self.head_dims,
                                self.head_activations, self.head_dropout_rate, self.head_normalization)
 
     def forward(self, drug, protein):
@@ -146,7 +150,6 @@ class AttentionDTA(BaseModel):
         drug_conv = self.drug_pooling(drug_conv).squeeze(2)
         protein_conv = self.protein_pooling(protein_conv).squeeze(2)
         pair = torch.cat([drug_conv, protein_conv], dim=1)
-
         return self.head(pair)
 
     def predict(self, drug, protein):
@@ -213,7 +216,6 @@ class AttentionDTA(BaseModel):
                     scheduler.step_update(
                         num_updates=num_updates, metric=metrics["loss"])
 
-
     def evaluate(self, dataloader: DataLoader, device: torch.device, criterion: Callable, evaluator: Optional[Type[Evaluator]] = None, logger: Optional[Any] = None) -> Any:
         losses = []
         predictions = []
@@ -248,8 +250,20 @@ class AttentionDTA(BaseModel):
             logger.log(metrics)
         return metrics
 
+    def collate(self, batch: List[Tuple[Any, Any, torch.Tensor]]) -> Tuple[Tuple[List[Any], List[Any]], torch.Tensor]:
+        """
+            Collate function for the AMMVF model.
+        """
+        # Unpacking the batch data
+        drug, protein, targets = zip(*batch)
+        targets = torch.stack(targets, 0)
+        drug = torch.stack(drug, 0)
+        protein = torch.stack(protein, 0)
+
+        return drug, protein, targets
+
     def reset_head(self) -> None:
-        self.head = LinearHead(self.dim * 2, self.head_output_dim, self.head_dims,
+            self.head = LinearHead(self.cnn_out_channels * 2, self.head_output_dim, self.head_dims,
                                self.head_activations, self.head_dropout_rate, self.head_normalization)
 
     def load_checkpoint(self, *args, **kwargs) -> None:
@@ -257,3 +271,21 @@ class AttentionDTA(BaseModel):
 
     def save_checkpoint(self, *args, **kwargs) -> None:
         return super().save_checkpoint(*args, **kwargs)
+
+    def default_setup_helpers(self) -> Dict[str, Any]:
+        CHARISOSMISET = {"#": 29, "%": 30, ")": 31, "(": 1, "+": 32, "-": 33, "/": 34, ".": 2,
+                 "1": 35, "0": 3, "3": 36, "2": 4, "5": 37, "4": 5, "7": 38, "6": 6,
+                 "9": 39, "8": 7, "=": 40, "A": 41, "@": 8, "C": 42, "B": 9, "E": 43,
+                 "D": 10, "G": 44, "F": 11, "I": 45, "H": 12, "K": 46, "M": 47, "L": 13,
+                 "O": 48, "N": 14, "P": 15, "S": 49, "R": 16, "U": 50, "T": 17, "W": 51,
+                 "V": 18, "Y": 52, "[": 53, "Z": 19, "]": 54, "\\": 20, "a": 55, "c": 56,
+                 "b": 21, "e": 57, "d": 22, "g": 58, "f": 23, "i": 59, "h": 24, "m": 60,
+                 "l": 25, "o": 61, "n": 26, "s": 62, "r": 27, "u": 63, "t": 28, "y": 64}
+
+        CHARPROTSET = {"A": 1, "C": 2, "B": 3, "E": 4, "D": 5, "G": 6,
+                    "F": 7, "I": 8, "H": 9, "K": 10, "M": 11, "L": 12,
+                    "O": 13, "N": 14, "Q": 15, "P": 16, "S": 17, "R": 18,
+                    "U": 19, "T": 20, "W": 21, "V": 22, "Y": 23, "X": 24, "Z": 25}
+        return {"char_drug_dict": CHARISOSMISET, "char_protein_dict": CHARPROTSET}
+    
+    

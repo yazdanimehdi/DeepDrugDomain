@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Any, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 from deepdrugdomain.layers.modules.graph_encoders.graph_conv import GraphConvEncoder
 from deepdrugdomain.layers.modules.heads.linear import LinearHead
 
@@ -18,6 +18,7 @@ from deepdrugdomain.schedulers import BaseScheduler
 from typing import Any, Callable, List, Optional, Sequence, Type
 from tqdm import tqdm
 import numpy as np
+from dgllife.utils import CanonicalAtomFeaturizer, CanonicalBondFeaturizer
 
 
 @ModelFactory.register('fragxsitedti')
@@ -304,3 +305,7 @@ class FragXSiteDTI(BaseModel):
 
     def save_checkpoint(self, *args, **kwargs) -> None:
         return super().save_checkpoint(*args, **kwargs)
+
+    def default_setup_helpers(self) -> Dict[str, Any]:
+        feat = CanonicalAtomFeaturizer()
+        return {"atom_featurizer": feat}

@@ -1,4 +1,4 @@
-from typing import Any, List, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 from torch import Tensor, nn
 import torch
 import math
@@ -16,6 +16,7 @@ from typing import Any, Callable, List, Optional, Sequence, Type
 from tqdm import tqdm
 import numpy as np
 from ..base_model import BaseModel
+import deepdrugdomain as ddd
 
 
 @LayerFactory.register("ammvf_position_wise_ff")
@@ -464,3 +465,6 @@ class AMMVF(BaseModel):
 
     def save_checkpoint(self, *args, **kwargs) -> None:
         return super().save_checkpoint(*args, **kwargs)
+
+    def default_setup_helpers(self) -> Dict[str, Any]:
+        return {"atom_featurizer":  ddd.data.preprocessing.ammvf_mol_features}

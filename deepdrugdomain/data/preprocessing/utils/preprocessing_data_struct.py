@@ -158,7 +158,7 @@ class PreprocessingObjectBase(ABC):
 
             if len(new_data) > 0:
                 _ = self.preprocess.update(
-                    processed_data, mapping_data, new_data, directory, self.in_memory, self.threads, f"{self.preprocessing_type}_{self.attribute}")
+                    processed_data, mapping_data, new_data, directory, self.in_memory, threads, f"{self.preprocessing_type}_{self.attribute}")
 
             if not self.in_memory:
                 mapping_data = self._load_mapping(directory)

@@ -29,7 +29,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
 from deepdrugdomain.layers import LayerFactory, ActivationFactory, GraphConvEncoder, LinearHead
-from typing import Any, Callable, List, Optional, Sequence, Type
+from typing import Any, Callable, Dict, List, Optional, Sequence, Type
 
 from deepdrugdomain.utils.weight_init import trunc_normal_
 from ..factory import ModelFactory
@@ -37,6 +37,7 @@ from ..base_model import BaseModel
 from deepdrugdomain.metrics import Evaluator
 from torch.utils.data import DataLoader
 from torch.optim.optimizer import Optimizer
+from dgllife.utils import CanonicalAtomFeaturizer, CanonicalBondFeaturizer
 from deepdrugdomain.schedulers import BaseScheduler
 
 
@@ -474,3 +475,7 @@ class AttentionSiteDTI(BaseModel):
 
     def save_checkpoint(self, *args, **kwargs) -> None:
         return super().save_checkpoint(*args, **kwargs)
+    
+    def default_setup_helpers(self) -> Dict[str, Any]:
+        feat = CanonicalAtomFeaturizer()
+        return {"atom_featurizer": feat}

@@ -12,7 +12,7 @@ AMINO_ACIDS = "ACDEFGHIKLMNPQRSTVWY"
 
 @PreprocessorFactory.register("sequence_to_one_hot", "protein_sequence", "encoding_tensor")
 class OneHotEncoderPreprocessor(BasePreprocessor):
-    def __init__(self, max_sequence_length: Optional[int] = None, **kwargs) -> None:
+    def __init__(self, amino_acids: str = AMINO_ACIDS, max_sequence_length: Optional[int] = None, one_hot: bool = True, **kwargs) -> None:
         """
         Initializes the OneHotEncoderPreprocessor.
         parameters:
@@ -21,6 +21,8 @@ class OneHotEncoderPreprocessor(BasePreprocessor):
         """
         super().__init__(**kwargs)
         self.max_sequence_length = max_sequence_length
+        self.one_hot = one_hot
+        self.amino_acids = amino_acids
 
     def preprocess(self, sequence: str) -> Optional[torch.Tensor]:
         """
@@ -40,21 +42,43 @@ class OneHotEncoderPreprocessor(BasePreprocessor):
             ValueError: If the sequence contains non-standard amino acids.
         """
         sequence_length = len(sequence)
-        one_hot_matrix = np.zeros(
-            (sequence_length, len(AMINO_ACIDS)), dtype=np.float32)
+        if self.one_hot:
+            one_hot_matrix = np.zeros(
+                (sequence_length, len(self.amino_acids)), dtype=np.float32)
+            for i, amino_acid in enumerate(sequence):
+                if amino_acid not in self.amino_acids:
+                    raise ValueError(
+                        f"Non-standard amino acid found: {amino_acid}")
+                position = self.amino_acids.index(amino_acid)
+                one_hot_matrix[i, position] = 1
+            one_hot_tensor = torch.from_numpy(one_hot_matrix)
+            if self.max_sequence_length:
+                # Calculate how much padding is needed
+                padding_needed = self.max_sequence_length - sequence_length
+                # Pad the tensor if needed, pad is a tuple (pad_left, pad_right, pad_top, pad_bottom)
+                one_hot_tensor = F.pad(
+                    one_hot_tensor, (0, 0, 0, padding_needed), 'constant', 0)
+        else:
+            one_hot_matrix = np.zeros(sequence_length, dtype=np.float32)
+            if self.max_sequence_length:
+                if sequence_length > self.max_sequence_length:
+                    return None
+                one_hot_matrix = np.zeros(
+                    self.max_sequence_length, dtype=np.float32)
+                # Calculate how much padding is needed
+                padding_needed = self.max_sequence_length - sequence_length
+                # Pad the tensor if needed, pad is a tuple (pad_left, pad_right, pad_top, pad_bottom)
+                sequence = list(sequence) + ['<PAD>'] * padding_needed
+            for i, amino_acid in enumerate(sequence):
+                if amino_acid == '<PAD>':
+                    position = 0
+                elif amino_acid not in self.amino_acids:
+                    return None
+                else:
+                    position = self.amino_acids.index(amino_acid) + 1
 
-        for i, amino_acid in enumerate(sequence):
-            if amino_acid not in AMINO_ACIDS:
-                raise ValueError(
-                    f"Non-standard amino acid found: {amino_acid}")
-            position = AMINO_ACIDS.index(amino_acid)
-            one_hot_matrix[i, position] = 1
-        one_hot_tensor = torch.from_numpy(one_hot_matrix)
-        if self.max_sequence_length:
-            # Calculate how much padding is needed
-            padding_needed = self.max_sequence_length - sequence_length
-            # Pad the tensor if needed, pad is a tuple (pad_left, pad_right, pad_top, pad_bottom)
-            one_hot_tensor = F.pad(
-                one_hot_tensor, (0, 0, 0, padding_needed), 'constant', 0)
+                one_hot_matrix[i] = position
+            one_hot_tensor = torch.from_numpy(one_hot_matrix)
+            one_hot_tensor = one_hot_tensor.long()
 
-        return torch.from_numpy(one_hot_matrix)
+        return one_hot_tensor
