@@ -1,5 +1,4 @@
 from typing import Sequence, Dict, Any, Optional, Union
-import torch
 import torch.nn as nn
 from ...utils import LayerFactory, ActivationFactory
 
@@ -23,6 +22,9 @@ class CNNEncoder(nn.Module):
                  dropouts: Union[float, Sequence[float]] = 0.0,
                  normalization: Optional[Union[str,
                                                Sequence[Optional[str]]]] = None,
+                 embedding_layer: bool = False,
+                 embedding_dim: Optional[int] = None,
+                 input_embedding_dim: Optional[int] = None,
                  **kwargs) -> None:
         """
         Initialize the CNN encoder.
@@ -34,10 +36,34 @@ class CNNEncoder(nn.Module):
 
         layers = []
         cnn_channels = [input_channels] + hidden_channels + [output_channels]
+        if pooling_kwargs is None:
+            pooling_kwargs = [{}] * (len(cnn_channels) - 1)
+        if isinstance(dropouts, float):
+            dropouts = [dropouts] * (len(cnn_channels) - 1)
+        if isinstance(normalization, str):
+            normalization = [normalization] * (len(cnn_channels) - 1)
+        if normalization is None:
+            normalization = [None] * (len(cnn_channels) - 1)
+        if isinstance(activations, str):
+            activations = [activations] * (len(cnn_channels) - 1)
+        if activations is None:
+            activations = [None] * (len(cnn_channels) - 1)
 
-        if len(cnn_channels) - 1 != len(kernel_sizes) or len(cnn_channels) - 1 != len(strides):
-            raise ValueError(
-                "Number of channels must be one more than the number of kernel sizes and strides")
+        if isinstance(pooling, str):
+            pooling = [pooling] * (len(cnn_channels) - 1)
+
+        if pooling is None:
+            pooling = [None] * (len(cnn_channels) - 1)
+
+        if not isinstance(paddings, list):
+            paddings = [paddings] * (len(cnn_channels) - 1)
+
+        assert len(cnn_channels) - 1 == len(kernel_sizes) == len(strides) == len(dropouts) == len(normalization) == len(
+            activations) == len(pooling) == len(pooling_kwargs), "The number of CNN layers parameters must be the same"
+
+        if embedding_layer:
+            assert embedding_dim is not None and input_embedding_dim is not None, "Embedding layer requires embedding_dim and input_embedding_dim to be specified"
+            layers.append(nn.Embedding(input_embedding_dim, embedding_dim))
 
         for i in range(len(cnn_channels) - 1):
             layers.append(
@@ -48,35 +74,34 @@ class CNNEncoder(nn.Module):
                           padding=self._get_padding(paddings, i),
                           **kwargs)
             )
-            self._add_optional_layer(
-                layers, normalization, i, self.layer_factory, cnn_channels[i + 1])
-            self._add_optional_layer(
-                layers, activations, i, self.activation_factory)
-            layers.append(nn.Dropout(self._get_sequence_value(dropouts, i)))
 
-            if pooling:
-                self._add_pooling_layer(layers, pooling[i], pooling_kwargs, i)
+            if normalization[i]:
+                layers.append(
+                    self.layer_factory.create(normalization[i], cnn_channels[i + 1]))
+
+            if activations[i]:
+                layers.append(
+                    self.activation_factory.create(activations[i]))
+            if pooling[i]:
+                if pooling[i] == 'max':
+                    layers.append(nn.MaxPool1d(**pooling_kwargs[i]))
+                elif pooling[i] == 'avg':
+                    layers.append(nn.AvgPool1d(**pooling_kwargs[i]))
+                elif pooling[i] == 'global_max':
+                    layers.append(nn.AdaptiveAvgPool1d(1))
+                elif pooling[i] == 'global_avg':
+                    layers.append(nn.AdaptiveAvgPool1d(1))
+                else:
+                    raise ValueError(
+                        f"Pooling type '{pooling[i]}' not supported")
 
         self.cnn_encoder = nn.Sequential(*layers)
 
     def _get_padding(self, paddings, index):
-        return paddings[index] if isinstance(paddings, Sequence) else paddings
+        return paddings if isinstance(paddings, str) else paddings[index] if isinstance(paddings, Sequence) else paddings
 
     def _get_sequence_value(self, sequence, index):
         return sequence[index] if isinstance(sequence, Sequence) else sequence
-
-    def _add_optional_layer(self, layers, layer_type, index, factory, *args):
-        if layer_type:
-            layer = factory.create(layer_type[index] if isinstance(
-                layer_type, Sequence) else layer_type, *args)
-            if layer:
-                layers.append(layer)
-
-    def _add_pooling_layer(self, layers, pooling_type, pooling_kwargs, index):
-        if pooling_type == 'max':
-            layers.append(nn.MaxPool1d(**pooling_kwargs[index]))
-        elif pooling_type == 'avg':
-            layers.append(nn.AvgPool1d(**pooling_kwargs[index]))
 
     def forward(self, x):
         """

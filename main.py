@@ -112,7 +112,7 @@ def main(args):
     # print(preprocesses)
     # preprocesses = preprocess_drug + preprocess_protein + preprocess_label
 
-    model = ModelFactory.create("csdti")
+    model = ModelFactory.create("deepdta")
     preprocesses = ddd.data.PreprocessingList(model.default_preprocess(
         "SMILES", "Target_Seq", "Label"))
     # model = AttentionDTA()
@@ -123,7 +123,7 @@ def main(args):
     collate_fn = model.collate
 
     data_loader_train = DataLoader(
-        datasets[0], batch_size=256, shuffle=True, num_workers=4, pin_memory=True, drop_last=True, collate_fn=collate_fn)
+        datasets[0], batch_size=64, shuffle=True, num_workers=4, pin_memory=True, drop_last=True, collate_fn=collate_fn)
 
     data_loader_val = DataLoader(datasets[1], drop_last=False, batch_size=32,
                                  num_workers=4, pin_memory=False, collate_fn=collate_fn)
