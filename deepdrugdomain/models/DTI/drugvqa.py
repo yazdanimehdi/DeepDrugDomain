@@ -1,7 +1,33 @@
 """
-Reference:
-- Zheng, S., Li, Y., Chen, S. et al. Publisher Correction: Predicting drug–protein interaction using quasi-visual question answering system. Nat Mach Intell 2, 551 (2020). https://doi.org/10.1038/s42256-020-0224-z
+Implementation of DrugVQA for predicting drug-protein interactions.
+
+Abstract:
+DrugVQA introduces a novel approach to predict drug-protein interactions by 
+representing proteins with two-dimensional distance maps (Image) from monomer 
+structures and drugs with molecular linear notation (String), akin to visual 
+question answering systems. This end-to-end deep learning framework addresses 
+the limitations of one-dimensional protein sequences and inefficient three-dimensional 
+structure inputs. It employs a dynamic attentive convolutional neural network to 
+learn from variable-length distance maps and a self-attentional sequential model for 
+extracting features from linear notations. DrugVQA has demonstrated competitive 
+performance on DUD-E, human, and BindingDB benchmark datasets, and provides 
+biological interpretation through attention visualization, highlighting key regions 
+in both protein and drug molecules.
+
+Citation:
+Zheng, S., Li, Y., Chen, S., et al. (2020). Predicting drug-protein interaction using 
+quasi-visual question answering system. Nature Machine Intelligence, 2, 134-140. 
+https://doi.org/10.1038/s42256-020-0152-y
+
+GitHub Repository:
+Source code available at: https://github.com/prokia/drugVQA.
+
+Note:
+To effectively use DrugVQA, users must ensure appropriate preprocessing of protein 
+distance maps and drug linear notations. The model demands precise input formats 
+for accurate drug-protein interaction prediction and analysis.
 """
+
 
 from functools import partial
 from typing import Any, Callable, List, Optional, Sequence, Type

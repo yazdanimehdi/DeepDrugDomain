@@ -1,3 +1,33 @@
+"""
+Implementation of FragXsiteDTI for drug-target interaction prediction.
+
+Abstract:
+FragXsiteDTI is a novel transformer-based model aimed at improving the interpretability 
+and performance of drug-target interaction (DTI) prediction. It is the first DTI model 
+to use both drug molecule fragments and protein pockets, providing rich representations 
+for detailed interaction analysis. Inspired by the Perceiver IO framework, FragXsiteDTI 
+employs a learnable latent array for initial cross-attention with protein binding site 
+embeddings and subsequent self-attention for drug fragments. This approach ensures 
+seamless information translation and captures critical nuances in drug-protein interactions. 
+The model demonstrates superior predictive power on benchmark datasets and offers 
+interpretability by identifying critical components in drug-target pairs.
+
+GitHub Repository:
+Source code available at: https://github.com/yazdanimehdi/FragXsiteDTI.
+
+Citation:
+Yalabadi, A. K., Yazdani-Jahromi, M., Yousefi, N., Tayebi, A., Abdidizaji, S., & Garibay, O. O. 
+(2023). FragXsiteDTI: Revealing Responsible Segments in Drug-Target Interaction with 
+Transformer-Driven Interpretation. arXiv preprint arXiv:2311.02326.
+
+Note:
+For optimal use of FragXsiteDTI, ensure accurate preprocessing of drug molecules and 
+protein pocket data. The model requires precise input formats for effective 
+interpretation and prediction of drug-target interactions.
+
+[Implementation details and methods go here.]
+"""
+
 from functools import partial
 from typing import Any, Dict, Optional, Sequence, Tuple
 from deepdrugdomain.layers.modules.graph_encoders.graph_conv import GraphConvEncoder

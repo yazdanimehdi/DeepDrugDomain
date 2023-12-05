@@ -38,6 +38,10 @@ class CNNEncoder(nn.Module):
         cnn_channels = [input_channels] + hidden_channels + [output_channels]
         if pooling_kwargs is None:
             pooling_kwargs = [{}] * (len(cnn_channels) - 1)
+
+        if isinstance(pooling_kwargs, dict):
+            pooling_kwargs = [pooling_kwargs] * (len(cnn_channels) - 1)
+
         if isinstance(dropouts, float):
             dropouts = [dropouts] * (len(cnn_channels) - 1)
         if isinstance(normalization, str):
@@ -57,6 +61,9 @@ class CNNEncoder(nn.Module):
 
         if not isinstance(paddings, list):
             paddings = [paddings] * (len(cnn_channels) - 1)
+
+        # print(len(cnn_channels) - 1, len(kernel_sizes), len(strides), len(dropouts), len(normalization), len(
+        #     activations), len(pooling), len(pooling_kwargs))
 
         assert len(cnn_channels) - 1 == len(kernel_sizes) == len(strides) == len(dropouts) == len(normalization) == len(
             activations) == len(pooling) == len(pooling_kwargs), "The number of CNN layers parameters must be the same"

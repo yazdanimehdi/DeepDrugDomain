@@ -1,27 +1,33 @@
 """
-AttentionSiteDTI: Implementation of an Interpretable Graph-Based Model for Drug-Target Interaction Prediction
+Implementation of AttentionSiteDTI for drug-target interaction prediction.
 
-The AttentionSiteDTI model is inspired by the advancements in Natural Language Processing, specifically
-in sentence-level relation classification. The model represents the drug and target as graphs, and through
-a combination of graph convolutional layers, attention mechanisms, and LSTM layers, it produces interaction
-predictions between them.
-
-The unique combination of LSTM layers with graph-based representations allows this model to consider both
-sequential and structural patterns in the drug-target interaction. This results in a more holistic and
-informed prediction, emphasizing regions crucial for interaction.
-
-The implemented architecture can be summarized as:
-- Graph Convolutional Layers: Transform node features in both drug and target graphs.
-- LSTM Layers (optional): To capture sequential patterns in the combined representation.
-- Attention Layer: Provides weights to the interaction regions based on importance.
-- Classification Layer: Final prediction of the drug-target interaction.
-
-Authors of the original paper: [Author1, Author2, ...] (Please replace with actual authors)
+Abstract:
+AttentionSiteDTI is an interpretable graph-based deep learning prediction model 
+for drug-target interaction (DTI) prediction. Drawing inspiration from NLP sentence 
+classification, it treats the drug-target complex as a sentence, understanding the 
+relational meaning between protein pockets and the drug molecule. The model utilizes 
+protein binding sites combined with a self-attention mechanism, enabling interpretability 
+by identifying key protein binding sites in drug-target interactions. AttentionSiteDTI 
+has shown improved performance on benchmark datasets and exceptional generalizability 
+when tested on new proteins. The model's practical potential was experimentally evaluated, 
+showing a high agreement between computational predictions and laboratory observations, 
+demonstrating its effectiveness as a pre-screening tool in drug repurposing applications.
 
 Citation:
-[Please provide the actual citation for the paper here.]
+Mehdi Yazdani-Jahromi, Niloofar Yousefi, Aida Tayebi, Elayaraja Kolanthai, Craig J Neal, Sudipta Seal, Ozlem Ozmen Garibay,
+AttentionSiteDTI: an interpretable graph-based model for drug-target interaction prediction using NLP sentence-level relation classification,
+Briefings in Bioinformatics, Volume 23, Issue 4, July 2022, bbac272, https://doi.org/10.1093/bib/bbac272
 
+GitHub Repository:
+Source code available at: https://github.com/yazdanimehdi/AttentionSiteDTI.
+
+Note:
+Proper preprocessing and understanding of input data are essential for the effective 
+use of AttentionSiteDTI. The model's input should be formatted correctly to accurately 
+predict drug-target interactions.
 """
+
+
 import numpy as np
 import torch
 from torch.autograd import Variable

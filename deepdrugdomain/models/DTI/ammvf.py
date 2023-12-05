@@ -1,3 +1,33 @@
+"""
+Implementation of the AMMVF-DTI model for predicting drug-target interactions.
+
+Abstract:
+AMMVF-DTI is an end-to-end deep learning model for accurate identification of 
+potential drug-target interactions (DTIs). Leveraging a multi-head self-attention 
+mechanism, AMMVF-DTI explores interaction degrees between drugs and target proteins. 
+It stands out by extracting interactive features from both node-level and graph-level 
+embeddings, offering a more effective DTI modeling approach. This model demonstrates 
+superior performance over state-of-the-art methods on human, C. elegans, and DrugBank 
+datasets, thanks to its capability to incorporate interactive information and mine 
+features from both local and global structures. Additional ablation experiments 
+underscore the significance of each module in AMMVF-DTI. A case study on COVID-19-related 
+DTI prediction showcases the model's potential for both accuracy in DTI prediction and 
+insight into drug-target interactions.
+
+Citation:
+Wang L, Zhou Y, Chen Q. (2023). AMMVF-DTI: A Novel Model Predicting Drug-Target 
+Interactions Based on Attention Mechanism and Multi-View Fusion. International Journal 
+of Molecular Sciences, 24(18), 14142. doi: 10.3390/ijms241814142. PMID: 37762445; 
+PMCID: PMC10531525.
+
+GitHub Repository:
+Source code available at: https://github.com/frankchenqu/AMMVF.
+
+Note:
+Users should ensure correct processing of input data. AMMVF-DTI requires specific 
+input formats for drug and target data to enable effective prediction and analysis.
+"""
+
 from typing import Any, Dict, List, Sequence, Tuple
 from torch import Tensor, nn
 import torch

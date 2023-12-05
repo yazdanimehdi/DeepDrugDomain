@@ -1,9 +1,9 @@
 import argparse
 import numpy as np
 import torch
+from deepdrugdomain.models.DTA.attentiondta_tcbb import AttentionDTA_TCBB
 from deepdrugdomain.optimizers.factory import OptimizerFactory
 from deepdrugdomain.schedulers.factory import SchedulerFactory
-from deepdrugdomain.data.collate import CollateFactory
 from torch.utils.data import DataLoader
 from deepdrugdomain.models.factory import ModelFactory
 from deepdrugdomain.utils.config import args_to_config
@@ -112,7 +112,8 @@ def main(args):
     # print(preprocesses)
     # preprocesses = preprocess_drug + preprocess_protein + preprocess_label
 
-    model = ModelFactory.create("deepdta")
+    model = ModelFactory.create("attentiondta_tcbb")
+    # model = AttentionDTA_TCBB()
     preprocesses = ddd.data.PreprocessingList(model.default_preprocess(
         "SMILES", "Target_Seq", "Label"))
     # model = AttentionDTA()
@@ -131,9 +132,10 @@ def main(args):
                                   num_workers=4, pin_memory=False, collate_fn=collate_fn)
     criterion = torch.nn.BCELoss()
     optimizer = OptimizerFactory.create(
-        "adam", model.parameters(), lr=0.0005, weight_decay=0.0)
-    scheduler = SchedulerFactory.create(
-        "cosine", optimizer, warmup_epochs=0, warmup_lr=1e-3, num_epochs=200)
+        "adam", model.parameters(), lr=1e-3, weight_decay=0.0)
+    scheduler = None
+    # SchedulerFactory.create(
+    # "cosine", optimizer, warmup_epochs=0, warmup_lr=1e-3, num_epochs=200)
     device = torch.device("cpu")
     model.to(device)
     train_evaluator = ddd.metrics.Evaluator(["accuracy_score"], threshold=0.5)

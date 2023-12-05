@@ -1,9 +1,32 @@
 """
-CSDTI: An Interpretable Cross-Attention Network for Drug-Target Interaction Prediction
-https://link.springer.com/article/10.1007/s10489-023-04977-8
+Implementation of CSDTI for drug-target interaction prediction.
 
+Abstract:
+CSDTI addresses the challenges in drug-target interaction (DTI) prediction by 
+introducing an interpretable network architecture that combines graph neural 
+networks (GNNs) for drug molecule modeling with a cross-attention mechanism 
+to capture drug-target interaction features. Traditional GNNs, which focus 
+on local neighboring nodes, often miss the global 3D structure and edge information 
+of drug molecules. CSDTI overcomes this by integrating a drug molecule aggregator 
+to capture high-order dependencies within drug molecular graphs. This allows for 
+effective modeling of DTIs, improving performance metrics such as AUC, precision, 
+and recall. The model's interpretability is enhanced by visualizing attention weights, 
+providing chemical insights into the interactions. CSDTI demonstrates superior 
+performance over state-of-the-art methods in DTI prediction tasks.
+
+Citation:
+Pan, Y., Zhang, Y., Zhang, J., et al. (2023). CSDTI: an interpretable cross-attention 
+network with GNN-based drug molecule aggregation for drug-target interaction prediction. 
+Applied Intelligence, 53, 27177-27190. https://doi.org/10.1007/s10489-023-04977-8
+
+GitHub Repository:
+Source code available at: https://github.com/ziduzidu/CSDTI.
+
+Note:
+Effective use of CSDTI requires careful preprocessing of drug and target data. 
+Users should ensure that data is formatted appropriately for accurate interaction 
+predictions and analysis.
 """
-
 
 from typing import Any, List, Sequence, Tuple
 from torch import Tensor, nn

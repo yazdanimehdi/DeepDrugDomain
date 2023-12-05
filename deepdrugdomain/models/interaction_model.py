@@ -2,7 +2,7 @@ from .base_model import BaseModel
 from deepdrugdomain.layers import LayerFactory, LinearHead
 import torch
 import torch.nn as nn
-from typing import Dict, Any, Callable, Optional, Type, Union
+from typing import Dict, Any, Callable, Optional, Type, Union, List
 from deepdrugdomain.metrics import Evaluator
 from torch.utils.data import DataLoader
 from torch.optim.optimizer import Optimizer
@@ -12,17 +12,59 @@ from tqdm import tqdm
 
 
 class BaseInteractionModel(BaseModel):
-    def __init__(self, embedding_dim: int, encoder_1: nn.Module, encoder_1_kwargs: Dict[str, Any], encoder_2: nn.Module, encoder_2_kwargs: Dict[str, Any], head_kwargs: Dict[str, Any], aggregation_method: str, aggregation_module: Optional[Union[nn.Module, str]] = None, *args, **kwargs):
+    """
+    A base model for drug-target interaction prediction with various aggregation methods.
+
+    This class implements a flexible and modular architecture for drug-target interaction 
+    prediction, leveraging different types of neural network encoders and a variety of 
+    aggregation methods to combine the encoded representations.
+
+    Parameters:
+    embedding_dim (int): Dimension of the embedding space.
+    encoders (List[nn.Module]): List of neural network modules used as encoders.
+    encoders_kwargs (List[Dict[str, Any]]): List of dictionaries containing keyword 
+        arguments for each encoder in 'encoders'.
+    head_kwargs (Dict[str, Any]): Keyword arguments for the final linear head of the model.
+    aggregation_method (str): Method for aggregating the outputs of the encoders. Supported 
+        methods include 'concat', 'sum', 'product', 'average', 'max_pooling', 'dot_product', 
+        'weighted_sum', 'self_attention', 'cross_attention', and 'custom'.
+    aggregation_module (Optional[Union[nn.Module, str]]): Module or string identifier for 
+        the aggregation module, required if 'aggregation_method' is set to 'custom'.
+
+    Attributes:
+    encoders (List[nn.Module]): Instantiated encoder modules.
+    head (LinearHead): The linear head module for final prediction.
+    embedding_dim (int): The dimension of embeddings.
+    aggregation_method (str): The chosen method for aggregating encoder outputs.
+    aggregation_module (Optional[nn.Module]): The aggregation module (if any).
+
+    Raises:
+    AssertionError: If the specified aggregation method is not supported or required parameters 
+        for certain aggregation methods are not provided.
+
+    Methods:
+    forward(*args): Forward pass through the model.
+    collate(*args, **kwargs): Collates a batch of data.
+    preprocesses(*args, **kwargs): Preprocesses data before feeding into the model.
+    train_one_epoch(dataloader, device, criterion, optimizer, num_epochs, scheduler, evaluator, 
+        grad_accum_steps, clip_grad, logger): Trains the model for one epoch.
+    evaluate(dataloader, device, criterion, evaluator, logger): Evaluates the model.
+    reset_head(): Resets the linear head of the model.
+    predict(*args, **kwargs): Makes predictions using the model.
+    save_checkpoint(*args, **kwargs): Saves the model checkpoint.
+    load_checkpoint(*args, **kwargs): Loads a model checkpoint.
+    """
+    def __init__(self, embedding_dim: int, encoders: List[nn.Module], encoders_kwargs: List[Dict[str, Any]], head_kwargs: Dict[str, Any], aggregation_method: str, aggregation_module: Optional[Union[nn.Module, str]] = None, *args, **kwargs):
         super(BaseInteractionModel, self).__init__()
-        self.encoder_1 = encoder_1(**encoder_1_kwargs)
-        self.encoder_2 = encoder_2(**encoder_2_kwargs)
+        self.encoders = [encoders[i](**encoders_kwargs[i])
+                         for i in range(len(encoders))]
         self.head_kwargs = head_kwargs
         self.head = LinearHead(**head_kwargs)
         self.embedding_dim = embedding_dim
         self.aggregation_method = aggregation_method
 
         assert self.aggregation_method in ['concat', 'sum', 'product', 'average', 'max_pooling', 'dot_product',
-                                           'weighted_sum', 'self_attention', 'cross_attention', 'cosine_similarity', 'custom'], 'Aggregation method not supported'
+                                           'weighted_sum', 'self_attention', 'cross_attention', 'custom'], 'Aggregation method not supported'
         if self.aggregation_method == 'custom':
             assert aggregation_module is not None, 'Aggregation module not provided'
             self.aggregation_module = LayerFactory.create(
@@ -56,61 +98,69 @@ class BaseInteractionModel(BaseModel):
             else:
                 self.cls_token = False
         elif self.aggregation_method == 'weighted_sum':
-            self.weight_matrix_ligand = torch.nn.Parameter(
-                torch.randn(embedding_dim))
-            self.weight_matrix_protein = torch.nn.Parameter(
-                torch.randn(embedding_dim))
+            self.weight_matrix = [torch.nn.Parameter(
+                torch.randn(embedding_dim)) for _ in range(len(encoders))]
 
-    def forward(self,  x1, x2):
-        batch_size = x1.shape[0]
-
-        x1 = self.encoder_1(x1)
-        x2 = self.encoder_2(x2)
+    def forward(self,  *args):
+        assert len(args) == len(
+            self.encoders), 'Number of inputs must be the same as the number of encoders'
+        batch_size = args[0].shape[0]
+        encoded_inputs = [self.encoders[i](args[i]) for i in range(len(args))]
 
         if self.aggregation_method == 'concat':
-            x1 = x1.view(batch_size, -1)
-            x2 = x2.view(batch_size, -1)
-            x = torch.cat([x1, x2], dim=1)
+            encoded_inputs = [x.view(batch_size, -1) for x in encoded_inputs]
+            x = torch.cat(encoded_inputs, dim=1)
 
         elif self.aggregation_method == 'sum':
-            x = x1 + x2
+            encoded_inputs = [x.view(batch_size, -1) for x in encoded_inputs]
+            x = torch.sum(torch.stack(encoded_inputs),
+                          dim=0).view(batch_size, -1)
 
         elif self.aggregation_method == 'product':
-            x = x1 * x2
+            encoded_inputs = [x.view(batch_size, -1) for x in encoded_inputs]
+            x = torch.prod(torch.stack(encoded_inputs),
+                           dim=0).view(batch_size, -1)
 
         elif self.aggregation_method == 'average':
-            x = (x1 + x2) / 2
+            encoded_inputs = [x.view(batch_size, -1) for x in encoded_inputs]
+            x = torch.mean(torch.stack(encoded_inputs),
+                           dim=0).view(batch_size, -1)
 
         elif self.aggregation_method == 'max_pooling':
-            x = torch.max(torch.stack([x1, x2]), dim=0)[0]
+            encoded_inputs = [x.view(batch_size, -1) for x in encoded_inputs]
+            x = torch.max(torch.stack(encoded_inputs),
+                          dim=0).view(batch_size, -1)
 
         elif self.aggregation_method == 'dot_product':
-            x = torch.dot(x1.flatten(), x2.flatten())
+            x1 = encoded_inputs[0].view(batch_size, -1)
+            x2 = encoded_inputs[1].view(batch_size, -1)
+            x = torch.bmm(x1.unsqueeze(2), x2.unsqueeze(1)
+                          ).view(batch_size, -1)
 
         elif self.aggregation_method == 'weighted_sum':
-            x = (x1 * self.weight_matrix_ligand) + \
-                (x2 * self.weight_matrix_protein)
+            encoded_inputs = [x.view(batch_size, -1) for x in encoded_inputs]
+            x = torch.stack(encoded_inputs)
+            x = torch.stack([torch.matmul(x[i], self.weight_matrix[i])
+                             for i in range(len(x))])
+            x = torch.sum(x, dim=0)
 
         elif self.aggregation_method == 'self_attention':
+            x = torch.cat(encoded_inputs, dim=1)
             if self.cls_token:
                 cls_token = self.cls_token_embedding
-                x1 = torch.cat([cls_token, x1, x2], dim=1)
-                x = self.self_attention(x1, x2)
+                x = torch.cat([cls_token, x], dim=1)
+                x = self.self_attention(x)
                 x = x[:, 0, :]
             else:
-                x = self.self_attention(x1, x2)
+                x = self.self_attention(encoded_inputs)
                 x = torch.mean(x, dim=1)
 
         elif self.aggregation_method == 'cross_attention':
             x = self.cross_attention(x1, x2)
             x = torch.mean(x, dim=1)
 
-        elif self.aggregation_method == 'cosine_similarity':
-            x = torch.nn.functional.cosine_similarity(
-                x1.unsqueeze(0), x2.unsqueeze(0))
-
         elif self.aggregation_method == 'custom':
-            x = self.aggregation_module(x1, x2)
+            x = self.aggregation_module(encoded_inputs)
 
         x = self.head(x)
         return x
@@ -138,7 +188,7 @@ class BaseInteractionModel(BaseModel):
         self.train()
         with tqdm(dataloader) as t:
             t.set_description('Training')
-            for batch_idx, (drug, protein, target) in enumerate(t):
+            for batch_idx, x in enumerate(t):
                 last_batch = batch_idx == last_batch_idx
                 need_update = last_batch or (batch_idx + 1) % accum_steps == 0
                 update_idx = batch_idx // accum_steps
@@ -146,9 +196,10 @@ class BaseInteractionModel(BaseModel):
                 if batch_idx >= last_batch_idx_to_accum:
                     accum_steps = last_accum_steps
 
-                drug = drug.to(device)
-                protein = protein.to(device)
-                out = self.forward(drug, protein)
+                target = x[-1]
+                inputs = [x[i].to(device) for i in range(len(x) - 1)]
+
+                out = self.forward(*inputs)
 
                 target = target.to(
                     device).view(-1, 1).to(torch.float)
@@ -189,12 +240,11 @@ class BaseInteractionModel(BaseModel):
         self.eval()
         with tqdm(dataloader) as t:
             t.set_description('Testing')
-            for batch_idx, (drug, protein, target) in enumerate(t):
-                drug = drug.to(device)
-                protein = protein.to(device)
-
+            for batch_idx, x in enumerate(t):
+                target = x[-1]
+                inputs = [x[i].to(device) for i in range(len(x) - 1)]
                 with torch.no_grad():
-                    out = self.forward(drug, protein)
+                    out = self.forward(*inputs)
 
                 target = target.to(
                     device).view(-1, 1).to(torch.float)
