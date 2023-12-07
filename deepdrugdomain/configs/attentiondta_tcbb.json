@@ -17,20 +17,11 @@
                 "relu",
                 "relu"
             ],
-            "protein_cnn_dropout": [
-                0.1,
-                0.1,
-                0.1
-            ],
-            "protein_cnn_normalization": [
-                "batch",
-                "batch",
-                "batch"
-            ],
+            "protein_cnn_dropout": 0.0,
+            "protein_cnn_normalization": null,
             "protein_hidden_channels": [
                 32,
-                64,
-                96
+                64
             ],
             "drug_max_length": 100,
             "drug_kernel": [
@@ -48,40 +39,34 @@
                 "relu",
                 "relu"
             ],
-            "drug_cnn_dropout": [
-                0.1,
-                0.1,
-                0.1
-            ],
-            "drug_cnn_normalization": [
-                "batch",
-                "batch",
-                "batch"
-            ],
+            "drug_cnn_dropout": 0.0,
+            "drug_cnn_normalization": null,
             "drug_hidden_channels": [
                 32,
-                64,
-                96
+                64
             ],
-            "cnn_out_channels": 32,
+            "cnn_out_channels": 96,
             "attention_layer": "attentiondta_attention",
             "head_num": 8,
             "char_dim": 128,
             "head_output_dim": 1,
             "head_dims": [
-                128
+                1024,
+                1024, 
+                512
             ],
             "head_activations": [
-                "relu",
-                "relu"
+                "leaky_relu",
+                "leaky_relu",
+                "leaky_relu",
+                "sigmoid"
             ],
-            "head_normalization": [
-                "batch",
-                "batch"
-            ],
+            "head_normalization": null,
             "head_dropout_rate": [
                 0.1,
-                0.1
+                0.1,
+                0.1,
+                0.0
             ]
         }
     }

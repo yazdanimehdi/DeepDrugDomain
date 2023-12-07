@@ -2,7 +2,7 @@
     "model": {
         "default": {
             "motifs_input_dim": 1000,
-            "protein_input_dim": 21,
+            "protein_input_dim": 26,
             "ligand_input_dim": 100,
             "encoder_ligand_kwargs": {
                 "input_channels": 32,

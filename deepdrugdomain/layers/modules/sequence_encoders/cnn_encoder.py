@@ -117,7 +117,7 @@ class CNNEncoder(nn.Module):
         Forward pass of the module.
         """
         return self.cnn_encoder(x)
-    
+
     def get_output_size(self, input_size):
         """
         Returns the output size of the module.

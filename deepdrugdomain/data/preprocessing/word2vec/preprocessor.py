@@ -1,3 +1,4 @@
+from functools import partial
 from deepdrugdomain.data.preprocessing.base_preprocessor import BasePreprocessor
 from deepdrugdomain.data.preprocessing.factory import PreprocessorFactory
 from typing import Any, Optional, Callable
@@ -31,7 +32,7 @@ class Word2VecPreprocessor(BasePreprocessor):
         """
         super().__init__(**kwargs)
         self.model_path = model_path
-        self.sentence_preprocessing = seq_to_kmers(k=k)
+        self.sentence_preprocessing = partial(seq_to_kmers, k=k)
         self.vec_size = vec_size
         self.kwargs = kwargs
         self.update_vocab = update_vocab

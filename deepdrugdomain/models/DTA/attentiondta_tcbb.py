@@ -308,10 +308,18 @@ class AttentionDTA_TCBB(BaseModel):
                          "V": 18, "Y": 52, "[": 53, "Z": 19, "]": 54, "\\": 20, "a": 55, "c": 56,
                          "b": 21, "e": 57, "d": 22, "g": 58, "f": 23, "i": 59, "h": 24, "m": 60,
                          "l": 25, "o": 61, "n": 26, "s": 62, "r": 27, "u": 63, "t": 28, "y": 64}
-        preprocess_drug = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="encoding_tensor", preprocessing_settings={
-                                              "all_chars": True, "max_sequence_length": self.drug_max_length}, in_memory=True, online=False)
-        preprocess_protein = PreprocessingObject(attribute=target_seq_attr, from_dtype="protein_sequence", to_dtype="encoding_tensor", preprocessing_settings={
-                                                 "one_hot": False, "max_sequence_length": self.protein_max_length, "amino_acids": "ACBEDGFIHKMLONQPSRTWVYXZ"}, in_memory=True, online=False)
+        
+        protein_dict = {x: i for i, x in enumerate("ACBEDGFIHKMLONQPSRTWVYXZ")}
+        preprocess_drug = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="kword_encoding_tensor",
+                                            preprocessing_settings={"window": 1,
+                                                                    "stride": 1,
+                                                                    "word_dict": CHARISOSMISET,
+                                                                    "convert_deepsmiles": False, 
+                                                                    "one_hot": False, 
+                                                                    "max_length": self.drug_max_length}, in_memory=True, online=False)
+        preprocess_protein = PreprocessingObject(attribute=target_seq_attr, from_dtype="protein_sequence", to_dtype="kmers_encoded_tensor", preprocessing_settings={
+            "window": 1, "stride": 1,
+            "one_hot": False, "word_dict": protein_dict, "max_length": self.protein_max_length}, in_memory=True, online=False)
         preprocess_label = PreprocessingObject(attribute=label_attr,  from_dtype="binary",
                                                to_dtype="binary_tensor", preprocessing_settings={}, in_memory=True, online=True)
         return [preprocess_drug, preprocess_protein, preprocess_label]

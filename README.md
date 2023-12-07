@@ -189,7 +189,7 @@ preprocess = [...]
 preprocesses = ddd.data.PreprocessingList(preprocess)
 # Load dataset
 dataset = ddd.data.DatasetFactory.create("human", file_paths="data/human/", preprocesses=preprocesses) 
-datasets = dataset(split_method="random_split"), frac=[0.8, 0.1, 0.1], seed=4)
+datasets = dataset(split_method="random_split", frac=[0.8, 0.1, 0.1], seed=4)
 ```
 
 ## Supported Models and Datasets

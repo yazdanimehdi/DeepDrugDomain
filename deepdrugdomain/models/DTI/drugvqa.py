@@ -30,7 +30,7 @@ for accurate drug-protein interaction prediction and analysis.
 
 
 from functools import partial
-from typing import Any, Callable, List, Optional, Sequence, Type
+from typing import Any, Callable, List, Optional, Sequence, Tuple, Type
 import numpy as np
 
 from tqdm import tqdm
@@ -119,7 +119,8 @@ class DrugVQA(BaseModel):
                                 lstm_layers, lstm_dropout, lstm_bidirectional)
         self.smile_attention = LayerFactory.create(
             attention_layers_smile, **attention_layers_smile_kwargs)
-
+        self.vocab_size_smiles = vocab_size_smiles
+        self.vocab_size_seq = vocab_size_seq
         # cnn
         self.conv = nn.Conv2d(contact_map_in_channels, contact_map_out_channels,
                               kernel_size=contact_map_kernel_size, stride=contact_map_stride)
@@ -177,6 +178,16 @@ class DrugVQA(BaseModel):
 
     def predict(self, *args, **kwargs) -> Any:
         return super().predict(*args, **kwargs)
+
+    def collate(self, batch: List[Tuple[Any, Any, torch.Tensor]]) -> Tuple[Tuple[List[Any], List[Any]], torch.Tensor]:
+        """
+            Collate function for the DrugVQA model.
+        """
+        # Unpacking the batch data
+        drug, protein, targets = zip(*batch)
+        targets = torch.stack(targets, 0)
+
+        return drug, protein, targets
 
     def train_one_epoch(self, dataloader: DataLoader, device: torch.device, criterion: Callable, optimizer: Optimizer, num_epochs: int, scheduler: Optional[Type[BaseScheduler]] = None, evaluator: Optional[Type[Evaluator]] = None, grad_accum_steps: int = 1, clip_grad: Optional[str] = None, logger: Optional[Any] = None) -> Any:
         """
@@ -303,8 +314,13 @@ class DrugVQA(BaseModel):
         return super().save_checkpoint(*args, **kwargs)
 
     def default_preprocess(self, smile_attr, pdb_id_attr, label_attr) -> List[PreprocessingObject]:
-        preprocess_drug = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="encoding_tensor", preprocessing_settings={
-            "max_sequence_length": 247}, in_memory=True, online=False)
+        preprocess_drug = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="kword_encoding_tensor",
+                                              preprocessing_settings={"window": 1,
+                                                                      "stride": 1,
+                                                                      "convert_deepsmiles": False,
+                                                                      "one_hot": False,
+                                                                      "max_length": None,
+                                                                      "num_of_combinations": self.vocab_size_smiles}, in_memory=True, online=False)
         preprocess_protein = PreprocessingObject(
             attribute=pdb_id_attr, from_dtype="pdb_id", to_dtype="contact_map", preprocessing_settings={"pdb_path": "data/pdb/"}, in_memory=False, online=False)
         preprocess_label = PreprocessingObject(

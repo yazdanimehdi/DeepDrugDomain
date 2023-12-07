@@ -241,14 +241,14 @@ class BaseInteractionModel(BaseModel):
         predictions = []
         targets = []
         self.eval()
+        
         with tqdm(dataloader) as t:
             t.set_description('Testing')
             for batch_idx, x in enumerate(t):
                 target = x[-1]
                 inputs = [x[i].to(device)
                           for i in range(len(x) - 1)]
-                for inp in inputs:
-                    print(inp.dtype)
+
                 with torch.no_grad():
                     out = self.forward(*inputs)
 

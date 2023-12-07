@@ -147,12 +147,12 @@ class PreprocessingObjectBase(ABC):
 
             mapping_data = self._load_mapping(directory)
             if self.in_memory:
-                path = os.path.join(
-                    directory, f"{self.preprocessing_type}_{self.attribute}_mapping_info.json")
                 data_path = os.path.join(
                     directory, f"{self.preprocessing_type}_{self.attribute}_all.pkl")
                 processed_data = self.preprocess.load_preprocessed_to_memory(
                     data_path)
+            else:
+                processed_data = None
 
             new_data = list(set(data_unique) - set(mapping_data.keys()))
 
@@ -173,7 +173,7 @@ class PreprocessingObjectBase(ABC):
 
         mapping = (self.attribute, mapping_data)
         data = self._clean_data(data, data_unique)
-        print(f"Preprocessing {self.attribute} done.")
+        print(f"Preprocessing {self.attribute} from {self.from_dtype} to {self.to_dtype} is done.")
         return data, mapping
 
     def __repr__(self):

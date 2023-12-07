@@ -63,7 +63,7 @@ class ContactMapFromPDBPreprocessor(BasePreprocessor):
             pdb = pdb.lower()
             if len(pdb) > 4:
                 pdb = pdb[:4]
-
+            print(pdb)
             parser = PDBParser()
             pdb_path = download_pdb(pdb, self.pdb_path)
             structure = parser.get_structure('protein', pdb_path)

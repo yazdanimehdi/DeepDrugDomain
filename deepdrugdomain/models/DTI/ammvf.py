@@ -510,7 +510,7 @@ class AMMVF(BaseModel):
         preprocess_protein1 = ddd.data.PreprocessingObject(attribute=target_seq_attr, from_dtype="protein_sequence", to_dtype="word2vec_tensor", preprocessing_settings={
             "model_path": "data/human/word2vec.model", "vec_size": 100}, in_memory=True, online=False)
         preprocess_protein2 = ddd.data.PreprocessingObject(
-            attribute=target_seq_attr,  from_dtype="protein_sequence", to_dtype="kmers_encoded_tensor", preprocessing_settings={"ngram": 3}, in_memory=True, online=False)
+            attribute=target_seq_attr,  from_dtype="protein_sequence", to_dtype="kmers_encoded_tensor", preprocessing_settings={"window": 3, "stride": 1, "one_hot": False}, in_memory=True, online=False)
 
         preprocess_label = ddd.data.PreprocessingObject(
             attribute=label_attr, from_dtype="binary", to_dtype="binary_tensor", preprocessing_settings={}, in_memory=True, online=True)

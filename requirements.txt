@@ -25,3 +25,4 @@ lifelines
 wandb
 async_timeout
 torch_geometric
+deepsmiles

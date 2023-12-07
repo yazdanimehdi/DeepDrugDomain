@@ -121,19 +121,21 @@ def main(args):
     # print(preprocesses)
     # preprocesses = preprocess_drug + preprocess_protein + preprocess_label
 
-    model = ModelFactory.create("widedta")
+    model = ModelFactory.create("drugvqa")
     # model = AttentionDTA_TCBB()
     preprocesses = ddd.data.PreprocessingList(model.default_preprocess(
-        "SMILES", "Target_Seq", "Label"))
+        "SMILES", "pdb_id", "Label"))
     # model = AttentionDTA()
     dataset = ddd.data.DatasetFactory.create(
         "human", file_paths="data/human/", preprocesses=preprocesses)
     datasets = dataset(split_method="random_split",
                        frac=[0.8, 0.1, 0.1], seed=seed, sample=0.1)
+
+
     collate_fn = model.collate
 
     data_loader_train = DataLoader(
-        datasets[0], batch_size=64, shuffle=True, num_workers=4, pin_memory=True, drop_last=True, collate_fn=collate_fn)
+        datasets[0], batch_size=64, shuffle=True, num_workers=0, pin_memory=True, drop_last=True, collate_fn=collate_fn)
 
     data_loader_val = DataLoader(datasets[1], drop_last=False, batch_size=32,
                                  num_workers=4, pin_memory=False, collate_fn=collate_fn)
