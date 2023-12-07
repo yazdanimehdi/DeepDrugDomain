@@ -247,7 +247,8 @@ class BaseInteractionModel(BaseModel):
                 target = x[-1]
                 inputs = [x[i].to(device)
                           for i in range(len(x) - 1)]
-
+                for inp in inputs:
+                    print(inp.dtype)
                 with torch.no_grad():
                     out = self.forward(*inputs)
 

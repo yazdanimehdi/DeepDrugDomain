@@ -182,7 +182,7 @@ class ProteinMotifPreprocessor(BasePreprocessor):
         if self.one_hot:
             if len(words) > self.max_length:
                 return None
-            one_hot = np.zeros((self.max_length, self.number_of_combinations))
+            one_hot = np.zeros((self.max_length, self.number_of_combinations), dtype=np.float32)
             for i, word in enumerate(words):
                 one_hot[i, self.word_dict[word]] = 1
             return torch.from_numpy(one_hot)

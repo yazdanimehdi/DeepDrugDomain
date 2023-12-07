@@ -152,6 +152,8 @@ class SMILESToEncodingPreprocessor(BasePreprocessor):
             for idx, item in enumerate(tokens):
                 embedding_matrix[idx] = self.token_to_idx[item]
 
-            one_hot_tensor = torch.from_numpy(embedding_matrix)
+            one_hot_tensor = torch.from_numpy(
+                embedding_matrix)
+            one_hot_tensor = one_hot_tensor.long()
 
-        return one_hot_tensor.to(torch.long)
+        return one_hot_tensor
