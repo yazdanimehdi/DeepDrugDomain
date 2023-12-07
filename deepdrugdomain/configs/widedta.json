@@ -1,0 +1,67 @@
+{
+    "model": {
+        "default": {
+            "motifs_input_dim": 1000,
+            "protein_input_dim": 21,
+            "ligand_input_dim": 100,
+            "encoder_ligand_kwargs": {
+                "input_channels": 32,
+                "hidden_channels": [16],
+                "output_channels": 32,
+                "kernel_sizes": [2, 2],
+                "strides": [1, 1],
+                "pooling": ["max", "max"],
+                "pooling_kwargs": {
+                    "kernel_size": 2,
+                    "stride": 2
+                },
+                "paddings": 1,
+                "activations": ["relu", "relu"],
+                "dropouts": 0.0,
+                "normalization": null,
+                "embedding_layer": false
+            },
+            "encoder_protein_kwargs": {
+                "input_channels": 6729,
+                "hidden_channels": [16],
+                "output_channels": 32,
+                "kernel_sizes": [2, 2],
+                "strides": [1, 1],
+                "pooling": ["max", "max"],
+                "pooling_kwargs": {
+                    "kernel_size": 2,
+                    "stride": 2
+                },
+                "paddings": "valid",
+                "activations": ["relu", "relu"],
+                "dropouts": 0.0,
+                "normalization": null,
+                "embedding_layer": false
+            },
+            "encoder_motif_kwargs": {
+                "input_channels": 1076,
+                "hidden_channels": [16],
+                "output_channels": 32,
+                "kernel_sizes": [2, 2],
+                "strides": [1, 1],
+                "pooling": ["max", "max"],
+                "pooling_kwargs": {
+                    "kernel_size": 2,
+                    "stride": 2
+                },
+                "paddings": "valid",
+                "activations": ["relu", "relu"],
+                "dropouts": 0.0,
+                "normalization": null,
+                "embedding_layer": false
+            },
+            "head_kwargs": {
+                "output_size": 1,
+                "hidden_sizes": [512, 10], 
+                "activations": ["relu", "relu", null],
+                "dropouts": [0, 0.3, 0.3], 
+                "normalization": null
+            }
+        }
+    }
+}

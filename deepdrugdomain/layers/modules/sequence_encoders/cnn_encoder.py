@@ -1,4 +1,5 @@
 from typing import Sequence, Dict, Any, Optional, Union
+import torch
 import torch.nn as nn
 from ...utils import LayerFactory, ActivationFactory
 
@@ -33,6 +34,7 @@ class CNNEncoder(nn.Module):
 
         self.layer_factory = LayerFactory()
         self.activation_factory = ActivationFactory()
+        self.input_channels = input_channels
 
         layers = []
         cnn_channels = [input_channels] + hidden_channels + [output_channels]
@@ -115,3 +117,9 @@ class CNNEncoder(nn.Module):
         Forward pass of the module.
         """
         return self.cnn_encoder(x)
+    
+    def get_output_size(self, input_size):
+        """
+        Returns the output size of the module.
+        """
+        return self.cnn_encoder(torch.zeros((1, self.input_channels, input_size))).view(1, -1).shape[1]

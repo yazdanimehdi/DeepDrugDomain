@@ -3,3 +3,4 @@ from .protein_kmers import KmersProteinPreprocessor
 from .contact_map import ContactMapFromPDBPreprocessor
 from .protein_fingerprint import FingerprintFromSequencePreprocessor
 from .seq_one_hot import OneHotEncoderPreprocessor
+from .motifs import ProteinMotifPreprocessor

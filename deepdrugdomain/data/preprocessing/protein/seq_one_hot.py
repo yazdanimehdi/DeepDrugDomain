@@ -41,7 +41,12 @@ class OneHotEncoderPreprocessor(BasePreprocessor):
         Raises:
             ValueError: If the sequence contains non-standard amino acids.
         """
-        sequence_length = len(sequence)
+        if self.max_sequence_length is not None and len(sequence) > self.max_sequence_length:
+            return None
+        if self.max_sequence_length:
+            sequence_length = self.max_sequence_length
+        else:
+            sequence_length = len(sequence)
         if self.one_hot:
             one_hot_matrix = np.zeros(
                 (sequence_length, len(self.amino_acids)), dtype=np.float32)
@@ -52,12 +57,6 @@ class OneHotEncoderPreprocessor(BasePreprocessor):
                 position = self.amino_acids.index(amino_acid)
                 one_hot_matrix[i, position] = 1
             one_hot_tensor = torch.from_numpy(one_hot_matrix)
-            if self.max_sequence_length:
-                # Calculate how much padding is needed
-                padding_needed = self.max_sequence_length - sequence_length
-                # Pad the tensor if needed, pad is a tuple (pad_left, pad_right, pad_top, pad_bottom)
-                one_hot_tensor = F.pad(
-                    one_hot_tensor, (0, 0, 0, padding_needed), 'constant', 0)
         else:
             one_hot_matrix = np.zeros(sequence_length, dtype=np.float32)
             if self.max_sequence_length:

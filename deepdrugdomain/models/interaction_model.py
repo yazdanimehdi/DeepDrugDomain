@@ -54,7 +54,8 @@ class BaseInteractionModel(BaseModel):
     save_checkpoint(*args, **kwargs): Saves the model checkpoint.
     load_checkpoint(*args, **kwargs): Loads a model checkpoint.
     """
-    def __init__(self, embedding_dim: int, encoders: List[nn.Module], encoders_kwargs: List[Dict[str, Any]], head_kwargs: Dict[str, Any], aggregation_method: str, aggregation_module: Optional[Union[nn.Module, str]] = None, *args, **kwargs):
+
+    def __init__(self, embedding_dim: Optional[int], encoders: List[nn.Module], encoders_kwargs: List[Dict[str, Any]], head_kwargs: Dict[str, Any], aggregation_method: str, aggregation_module: Optional[Union[nn.Module, str]] = None, *args, **kwargs):
         super(BaseInteractionModel, self).__init__()
         self.encoders = [encoders[i](**encoders_kwargs[i])
                          for i in range(len(encoders))]
@@ -93,11 +94,13 @@ class BaseInteractionModel(BaseModel):
                     'transformer_self_attention', **kwargs['self_attention'])
 
             if kwargs['cls_token'] == True:
+                assert 'embedding_dim' in kwargs, 'Embedding dimension is not provided'
                 self.cls_token = True
                 self.cls_token_embedding = nn.Embedding(1, 1, embedding_dim)
             else:
                 self.cls_token = False
         elif self.aggregation_method == 'weighted_sum':
+            assert embedding_dim is not None, 'Embedding dimension is not provided'
             self.weight_matrix = [torch.nn.Parameter(
                 torch.randn(embedding_dim)) for _ in range(len(encoders))]
 
@@ -197,7 +200,7 @@ class BaseInteractionModel(BaseModel):
                     accum_steps = last_accum_steps
 
                 target = x[-1]
-                inputs = [x[i].to(device) for i in range(len(x) - 1)]
+                inputs = [x[i].to(device)for i in range(len(x) - 1)]
 
                 out = self.forward(*inputs)
 
@@ -242,7 +245,9 @@ class BaseInteractionModel(BaseModel):
             t.set_description('Testing')
             for batch_idx, x in enumerate(t):
                 target = x[-1]
-                inputs = [x[i].to(device) for i in range(len(x) - 1)]
+                inputs = [x[i].to(device)
+                          for i in range(len(x) - 1)]
+
                 with torch.no_grad():
                     out = self.forward(*inputs)
 

@@ -112,7 +112,12 @@ class SMILESToEncodingPreprocessor(BasePreprocessor):
         else:
             tokens = list(smiles)
 
-        sequence_length = len(tokens)
+        if self.max_sequence_length and len(tokens) > self.max_sequence_length:
+            return None
+        if self.max_sequence_length:
+            sequence_length = self.max_sequence_length
+        else:
+            sequence_length = len(tokens)
         if self.one_hot:
             one_hot_matrix = np.zeros(
                 (sequence_length, self.embedding_dim), dtype=np.float32)
@@ -132,6 +137,7 @@ class SMILESToEncodingPreprocessor(BasePreprocessor):
                 # Pad the tensor if needed, pad is a tuple (pad_left, pad_right, pad_top, pad_bottom)
                 one_hot_tensor = F.pad(
                     one_hot_tensor, (0, 0, 0, padding_needed), 'constant', 0)
+
         else:
             if self.max_sequence_length:
                 # Calculate how much padding is needed

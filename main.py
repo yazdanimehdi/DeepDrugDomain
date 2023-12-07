@@ -59,6 +59,15 @@ def main(args):
     np.random.seed(seed)
     feat = CanonicalAtomFeaturizer()
     edge_feat = CanonicalBondFeaturizer()
+    # preprocess = ddd.data.PreprocessingObject(attribute="Target_Seq", from_dtype="protein_sequence", to_dtype="motif", preprocessing_settings={
+    #                                           "one_hot": True, "ngram": 3, "max_length": 400, "number_of_combinations": 400})
+    # preprocesses = ddd.data.PreprocessingList([preprocess])
+    # dataset = ddd.data.DatasetFactory.create(
+    #     "human", file_paths="data/human/", preprocesses=preprocesses)
+    # datasets = dataset(split_method="random_split",
+    #                    frac=[0.8, 0.1, 0.1], seed=seed, sample=0.01)
+
+    # print(datasets[0][0])
     # preprocess_drug = ddd.data.PreprocessingObject(attribute="SMILES", preprocessing_type="smile_to_dgl_graph", preprocessing_settings={
     #                                                "fragment": True, "max_block": 6, "max_sr": 8, "min_frag_atom": 1, "node_featurizer": feat}, in_memory=True, online=False)
     # preprocess_protein = ddd.data.PreprocessingObject(attribute="pdb_id", preprocessing_type="protein_pockets_to_dgl_graph", preprocessing_settings={
@@ -112,7 +121,7 @@ def main(args):
     # print(preprocesses)
     # preprocesses = preprocess_drug + preprocess_protein + preprocess_label
 
-    model = ModelFactory.create("attentiondta_tcbb")
+    model = ModelFactory.create("widedta")
     # model = AttentionDTA_TCBB()
     preprocesses = ddd.data.PreprocessingList(model.default_preprocess(
         "SMILES", "Target_Seq", "Label"))
@@ -120,7 +129,7 @@ def main(args):
     dataset = ddd.data.DatasetFactory.create(
         "human", file_paths="data/human/", preprocesses=preprocesses)
     datasets = dataset(split_method="random_split",
-                       frac=[0.8, 0.1, 0.1], seed=seed)
+                       frac=[0.8, 0.1, 0.1], seed=seed, sample=0.1)
     collate_fn = model.collate
 
     data_loader_train = DataLoader(
@@ -165,6 +174,25 @@ def main(args):
     #     'optimizer_state': optimizer.state_dict()
     # }
     # torch.save(info_dict, fn)
+
+    # import requests
+    # from bs4 import BeautifulSoup
+
+    # url = "https://www.genome.jp/tools-bin/search_motif_lib"
+    # form_data = {
+    #     "seq": "MPAYHSSLMDPDTKLIGNMALLPIRSQFKGPAPRETKDTDIVDEAIYYFKANVFFKNYEIKNEADRTLIYITLYISECLKKLQKCNSKSQGEKEMYTLGITNFPIPGEPGFPLNAIYAKPANKQEDEVMRAYLQQLRQETGLRLCEKVFDPQNDKPSKWWTCFVKRQFMNKSLSGPGQ",
+    #     "FORMAT": "PROSITE",
+    #     "prosite_pattern": "on",
+    #     "pfam": "on",
+    #     "prosite_profile": "on",
+    #     "skip_entry": "on",
+    #     "skip_unspecific_profile": "on"
+    # }
+    # response = requests.post(url, data=form_data)
+    # soup = BeautifulSoup(response.text, 'html.parser')
+    # motifs = soup.find_all('input', {'type': 'hidden', ''})
+    # for motif in motifs:
+    #     print(motif)
 
 
 if __name__ == '__main__':

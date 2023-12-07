@@ -57,38 +57,94 @@ The [example](./examples/) folder contains a collection of scripts and notebooks
 
 The following table lists the preprocessing methods supported by the package, detailing the data conversion, settings options, and the models that use them:
 
-Ligand:
+### Ligand Preprocessing Methods
 
-| Preprocessing Method | Converts Data From | Converts Data To | Settings                                  | Used in Models    |
-| -------------------- | ------------------ | ---------------- | ----------------------------------------- | ----------------- |
-| smiles_to_encoding          | smile     | encoding_tensor   | one_hot: bool, embedding_dim: Optional[int], max_sequence_length: Optional[int], replacement_dict: Dict[str, str], token_regex: Optional[str] , from_set: Optional[Dict[str, int]] | DrugVQA, AttentionDTA |
-| smile_to_graph          | smile    | graph    | node_featurizer: Callable, edge_featurizer: Optional[Callable], consider_hydrogen: bool, fragment: bool, hops: int | AMMVF, AttentionSiteDTI, FragXsiteDTI, CSDTI            |
-| smile_to_fingerprint          | smile     | fingerprint    | methods: str (['rdkit', 'morgan', 'daylight','ErG', 'rdkit2d', 'pubchem', 'ammvf', 'custom']),  radius: Optional[int], nBits: Optional[int], num_finger: Optional[int], atom_dict: Optional[AtomDictType], bond_dict: Optional[BondDictType], fingerprint_dict: Optional[FingerprintDictType],  edge_dict: Optional[Dict], consider_hydrogen: bool, custom_fingerprint: Optional[Callable],                         | AMMVF    |
+| **Method**             | **Converts From** | **Converts To**    | **Settings Options**                                                                                                           | **Used in Models**                            |
+|------------------------|-------------------|--------------------|--------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------|
+| **smiles_to_encoding** | SMILES            | Encoding Tensor    | one_hot: bool, embedding_dim: Optional[int], max_sequence_length: Optional[int], replacement_dict: Dict[str, str], token_regex: Optional[str], from_set: Optional[Dict[str, int]] | DrugVQA, AttentionDTA                         |
+| **smile_to_graph**     | SMILES            | Graph              | node_featurizer: Callable, edge_featurizer: Optional[Callable], consider_hydrogen: bool, fragment: bool, hops: int            | AMMVF, AttentionSiteDTI, FragXsiteDTI, CSDTI  |
+| **smile_to_fingerprint** | SMILES          | Fingerprint        | method: str, Refer to [Supported Fingerprinting Methods](#supported-fingerprinting-methods) table for detailed settings.                    | AMMVF                                         |
+
+For detailed information on fingerprinting methods, please see the [Supported Fingerprinting Methods](#supported-fingerprinting-methods) section.
+
+#### Supported Fingerprinting Methods
+
+| **Method Name** | **Description**                                                                                   | **Settings Options**                                                                                                                       |
+|-----------------|---------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| **RDKit**       | Converts SMILES to RDKit fingerprints, capturing molecular structure information.                | radius: Optional[int], nBits: Optional[int]                                                                                                |
+| **Morgan**      | Generates circular fingerprints, representing the environment of each atom in a molecule.        | radius: Optional[int], nBits: Optional[int]                                                                                                |
+| **Daylight**    | Traditional method to encode molecular features, focusing on specific substructure patterns.      | nBits: Optional[int]                                                                                                                       |
+| **ErG**         | Extended reduced graph-based approach, emphasizing molecular topology.                            | nBits: Optional[int], atom_dict: Optional[AtomDictType], bond_dict: Optional[BondDictType]                                                 |
+| **RDKit2D**     | Two-dimensional variant of RDKit, detailing planar molecular structures.                          | nBits: Optional[int], atom_dict: Optional[AtomDictType], bond_dict: Optional[BondDictType]                                                 |
+| **PubChem**     | Utilizes PubChem's approach to fingerprinting, highlighting unique chemical structures.          | nBits: Optional[int]                                                                                                                       |
+| **AMMVF**       | Custom fingerprinting method specific to the AMMVF model.                                         | num_finger: Optional[int], fingerprint_dict: Optional[FingerprintDictType], edge_dict: Optional[Dict]                                      |
+| **Custom**      | Allows for user-defined fingerprinting techniques, adaptable to specific research requirements.  | custom_fingerprint: Optional[Callable], consider_hydrogen: bool                                                                            |
+
+### Protein Preprocessing Methods
+
+| **Method**                        | **Converts From**   | **Converts To**         | **Settings Options**                                                                                            | **Used in Models**              |
+|-----------------------------------|---------------------|-------------------------|-----------------------------------------------------------------------------------------------------------------|---------------------------------|
+| **contact_map_from_pdb**          | PDB ID              | Contact Map             | pdb_path: str, method: str, distance_threshold: float, normalize_distance: bool                                 | DrugVQA                         |
+| **sequence_to_fingerprint**       | Protein Sequence    | Fingerprint             | method: str, Refer to [Supported Protein Fingerprinting Methods](#supported-protein-fingerprinting-methods) for settings.   | DrugVQA-Sequence                |
+| **kmers**                          | Protein Sequence    | Kmers Encoded Tensor    | ngram: int, word_dict: Optional[dict], max_length: Optional[int]                                               | AMMVF, CSDTI                    |
+| **protein_pockets_to_dgl_graph**  | PDB ID              | Binding Pocket Graph    | pdb_path: str, protein_size_limit: int                                                                          | AttentionSiteDTI, FragXsiteDTI  |
+| **word2vec**                       | Protein Sequence    | Word2Vec Tensor         | model_path: str, vec_size: int, k: int, update_vocab: Optional[bool]                                           | AMMVF                           |
+| **sequence_to_one_hot**           | Protein Sequence    | Encoding Tensor         | amino_acids: str, max_sequence_length: Optional[int], one_hot: bool                                            | AttentionDTA                    |
+| **sequence_to_motif**             | Protein Sequence    | Motif Tensor            | ngram: int, word_dict: Optional[dict], max_length: Optional[int], one_hot: bool, number_of_combinations: Optional[int] | WideDTA                         |
+
+For detailed information on protein fingerprinting methods, please see the [Supported Protein Fingerprinting Methods](#supported-protein-fingerprinting-methods) section.
+
+#### Supported Protein Fingerprinting Methods
+
+| **Method Name** | **Description**                                                                                   | **Settings Options**                                                                                                                       |
+|-----------------|---------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| **Quasi**       | A protein fingerprinting method that captures quasi-sequence information.                         | []                                                                                                      |
+| **AAC**         | Encodes protein sequences based on amino acid composition.                                        | []                                                                                                      |
+| **PAAC**        | Generates pseudo amino acid composition fingerprints for proteins.                               | []                                                                                                      |
+| **CT**          | A method focusing on the composition, transition, and distribution of amino acids in sequences.  | []                                                                                                      |
+| **Custom**      | Allows for user-defined protein fingerprinting techniques, adaptable to specific research needs. | custom settings as required                                                                                                               |
+
+### Label Preprocessing Methods
+
+| Method                | Converts From | Converts To    | Settings Options |
+|-----------------------|---------------|----------------|------------------|
+| **interaction_to_binary** | Binary        | Binary Tensor  | []               |
+| **ic50_to_binary**        | IC50          | Binary         | threshold: float |
+| **Kd_to_binary**          | Kd            | Binary         | threshold: float |
+| **value_to_log**          | Float         | Log            | []               |
 
 
+### `PreprocessingObject`
 
-Protein:
+#### `attribute`
+The `attribute` parameter specifies the key or column name in the input dataset that contains the data to be preprocessed.
+- **Example Usage**: `attribute="SMILES"` means the preprocessing will be applied to the data in the "SMILES" column of the dataset.
 
-| Preprocessing Method | Converts Data From | Converts Data To | Settings                                  | Used in Models    |
-| -------------------- | ------------------ | ---------------- | ----------------------------------------- | ----------------- |
-| contact_map_from_pdb          | pdb_id      | contact_map    | pdb_path: str, method: str, distance_threshold: float, normalize_distance: bool| DrugVQA |
-| sequence_to_fingerprint          | protein_sequence     | fingerprint    | method: str (['quasi', 'aac', 'paac', 'ct', 'custom']) | DrugVQA-Sequence            |
-| kmers          | protein_sequence    | kmers_encoded_tensor   | ngram: int, word_dict: Optional[dict], max_length: Optional[int]                          | AMMVF, CSDTI   |
-| protein_pockets_to_dgl_graph                  | pdb_id                | binding_pocket_graph              | pdb_path: str, protein_size_limit: int                                       | AttentionSiteDTI, FragXsiteDTI             |
-|word2vec|protein_sequence|word2vec_tensor|model_path: str, vec_size: int, k: int, update_vocab: Optional[bool]| AMMVF
-|sequence_to_one_hot| protein_sequence|encoding_tensor| amino_acids: str, max_sequence_length: Optional[int], one_hot: bool| AttentionDTA
+#### `from_dtype`
+This parameter defines the data type or format of the input data before preprocessing.
+- **Example Usage**: `from_dtype="smile"` indicates that the input data is in SMILES (Simplified Molecular Input Line Entry System) format, a textual representation of chemical structures.
 
-Label:
+#### `to_dtype`
+The `to_dtype` parameter specifies the desired data type or format after preprocessing.
+- **Example Usage**: `to_dtype="graph"` implies that the preprocessing will convert the input data (in this case, SMILES format) into a graph representation, which is often used in molecular modeling and cheminformatics.
 
-| Preprocessing Method | Converts Data From | Converts Data To | Settings                                  
-| -------------------- | ------------------ | ---------------- | ----------------------------------------- 
-| interaction_to_binary          | binary     | binary_tensor   |          []
-| ic50_to_binary          | ic50      | binary  | threshold: float
-| Kd_to_binary          | kd     | binary   | threshold: float                          
-| value_to_log       | float        | log           |                        []            
+#### `preprocessing_settings`
+This parameter is a dictionary that contains specific settings or options for the preprocessing step. It allows for customization of the preprocessing process based on the requirements of the model or the nature of the dataset.
+- **Example Usage**: 
 
+##### `in_memory` Flag
+The `in_memory` flag controls whether the preprocessed data is stored entirely in the system's memory (RAM).
+- **`True`**: Setting `in_memory` to `True` loads and stores the entire dataset in memory. This speeds up data retrieval during training but requires significant memory resources. It's ideal for datasets that can fit comfortably in RAM.
+- **`False`**: Setting `in_memory` to `False` means the data is not stored in memory but processed and loaded during training iterations. This approach is more memory-efficient, suitable for large datasets, but can lead to slower data access times.
 
-### Usage Example
+#### `online` Flag
+The `online` flag indicates whether preprocessing is performed in real-time (online) or preprocessed once and stored.
+- **`True`**: With `online` set to `True`, preprocessing occurs in real-time during each data access. This is beneficial for datasets requiring dynamic transformations during training.
+- **`False`**: Setting `online` to `False` pre-processes and stores the data in its final form. This method is efficient for computationally expensive preprocessing steps on static datasets.
+
+#### Usage Example
+In DeepDrugDomain, `PreprocessingObject` can be configured with these flags to optimize data handling:
+
 ```python
 import deepdrugdomain as ddd
 from dgllife.utils import CanonicalAtomFeaturizer
@@ -98,21 +154,23 @@ preprocess_drug = ddd.data.PreprocessingObject(attribute="SMILES", from_dtype="s
                                                "fragment": False, "node_featurizer": feat}, in_memory=True, online=False)
 ```
 
+
 ## Supported Datasets
 
-The following table provides information about the datasets supported by our package:
+DeepDrugDomain provides support for a variety of datasets, each tailored for specific use cases in drug discovery. The table below details the datasets available:
 
-| Dataset Name  | Description                                      | Use Case                   |
-| ------------- | ------------------------------------------------ | -------------------------- |
-| Celegans      | ... | DTI      |
-| Human      | Brief description of what Dataset2 consists of. | DTI    |
-| DrugBankDTI      | Brief description of what Dataset3 consists of. | DTI     |
-| Kiba           | ...                                              | DTA, DTI                        |
-| Davis           | ...                                              | DTA, DTI                        |
-| IBM_BindingDB           | ...                                              | DTA, DTI                        |
-| BindingDB           | ...                                              | DTA, DTI                        |
-| DrugTargetCommon| ... | DTA, DTI|
-| All TDC Datasets           | ...                                              | All drug discovery Tasks                        |
+| Dataset Name      | Description                                                              | Use Case             |
+|-------------------|--------------------------------------------------------------------------|----------------------|
+| **Celegans**          | Consists of chemical-genetic interaction data in C. elegans organisms.  | DTI                  |
+| **Human**             | Encompasses human protein-target interaction datasets.                   | DTI                  |
+| **DrugBankDTI**       | A comprehensive drug-target interaction dataset from DrugBank.           | DTI                  |
+| **Kiba**              | Combines kinase inhibitor bioactivity data across multiple sources.      | DTA, DTI             |
+| **Davis**             | Focuses on kinase inhibitor target affinity profiles.                    | DTA, DTI             |
+| **IBM_BindingDB**     | Derived from BindingDB, focuses on binding affinity of drug-like molecules. | DTA, DTI           |
+| **BindingDB**         | Contains measured binding affinities for protein-ligand complexes.       | DTA, DTI             |
+| **DrugTargetCommon**  | A curated set of drug-target interactions from various databases.        | DTA, DTI             |
+| **All TDC Datasets**  | Includes all datasets from the Therapeutics Data Commons (TDC).          | All drug discovery tasks |
+
 
 ### Supported Split Methods
 
@@ -127,8 +185,8 @@ All datasets listed above support the following split methods:
 import deepdrugdomain as ddd
 
 # Define PreprocessorObject
-preprocess = ...
-
+preprocess = [...]
+preprocesses = ddd.data.PreprocessingList(preprocess)
 # Load dataset
 dataset = ddd.data.DatasetFactory.create("human", file_paths="data/human/", preprocesses=preprocesses) 
 datasets = dataset(split_method="random_split"), frac=[0.8, 0.1, 0.1], seed=4)
