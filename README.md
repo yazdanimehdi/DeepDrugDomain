@@ -6,12 +6,45 @@ DeepDrugDomain is a comprehensive Python toolkit aimed at simplifying and accele
 
 ## Features
 
-- **Extensive Preprocessing Capabilities:** Quickly prepare datasets for modeling with a wide range of built-in preprocessing functions.
-- **Modular Design:** Easy-to-use factories for creating models, tasks, collate functions, and more, with just a few lines of code.
-- **Stateful Evaluation Metrics:** Integrated evaluation metrics to monitor model performance and ensure reproducibility.
-- **Flexible Activation Function Registry:** Register and use custom activation functions seamlessly within models.
-- **Comprehensive Task Handling:** Built-in support for common tasks in drug discovery, such as DTI and DTA, with the ability to define custom tasks.
-- **...**
+DeepDrugDomain is built with a suite of powerful features designed to empower researchers in the field of computational drug discovery. Below are some of the core capabilities that make DeepDrugDomain an indispensable tool:
+
+### Extensive Preprocessing Capabilities
+- **Comprehensive Preparation Tools**: Streamline your data preparation with our extensive suite of preprocessing tools.
+- **Support for Diverse Data**: Cater to a wide array of data formats prevalent in drug discovery, ensuring compatibility and ease of integration.
+
+### Modular Design for Flexibility
+- **Customizable Components**: Adapt the toolkit to meet your research needs with highly customizable components.
+- **Simplified Model Creation**: Our modular design principle makes model creation and experimentation a straightforward process, saving time and reducing complexity.
+
+### Stateful Evaluation Metrics
+- **Consistent Performance Tracking**: Integrated metrics provide a consistent framework for tracking the performance of models.
+- **Reproducibility and Accuracy**: These metrics are integral in ensuring the reproducibility of results and the accuracy of predictions.
+
+### Custom Activation Functions
+- **Integration of Novel Functions**: Introduce and integrate custom activation functions with ease to enhance your models.
+- **Boost to Model Adaptability**: This feature allows models to be more adaptable and effective in handling complex drug discovery tasks.
+
+### Comprehensive Task Support
+- **Support for Core Tasks**: DeepDrugDomain comes with built-in support for key tasks such as drug-target interaction (DTI) and drug-target affinity (DTA).
+- **Tailored for Drug Discovery**: The toolkit is crafted to meet the unique challenges faced in drug discovery, providing tailored support that drives innovation and progress.
+
+### Facilitation of Model Augmentation
+- **Decorator Design**: Augment models seamlessly with new inputs, enhancing the toolkit's utility and application scope.
+- **Accuracy Improvement**: With just a line of code, improve the accuracy of existing models, streamlining the refinement process.
+
+### Benchmarking
+- **Built-in Benchmarks**: Leverage the pre-implemented benchmark models to gauge performance and validate outcomes.
+- **Customizability**: Tailor the architecture of implemented models to meet specific research requirements, offering unparalleled flexibility.
+
+### Expandability
+- **Continuous Development**: Designed with the future in mind, DeepDrugDomain encourages and facilitates continuous expansion and incorporation of new features.
+- **Custom Instantiation**: Choose to instantiate components in their default configuration or customize them for a more tailored experience.
+
+### Ease of Use
+- **Simplified Drug Discovery**: Remove the complexity from drug discovery tasks. DeepDrugDomain comes with a comprehensive suite of tools for easy preprocessing of any generic data.
+- **User-Friendly Model Training**: Whether you're defining new models or utilizing pre-implemented ones, the process is straightforward and user-friendly, requiring minimal setup.
+
+By integrating these advanced features, DeepDrugDomain stands out as a toolkit that not only meets the current demands of drug discovery but also adapts to its future challenges and opportunities.
 
 ## Installation
 For now you can use this environments for usage and development,
@@ -27,21 +60,50 @@ pip install git+https://github.com/yazdanimehdi/deepdrugdomain.git
 ```python
 import deepdrugdomain as ddd
 
-data_loaders, model, optimizer, criterion, scheduler, evaluators = ddd.utils.initialize_training_environment(model="supported_model_name", dataset="supported_dataset_by_the_model")
-
 # setting device on GPU if available, else CPU
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-epochs = 100
-for i for range(epochs):
-    print(f"Epoch {i}:")
-    # train
-    model.train_one_epoch(data_loaders[0], device, criterion, optimizer, num_epochs=epochs, scheduler=scheduler, evaluator=evaluator[0])
-    # validation
-    print(model.evaluate(data_loaders[1], device, criterion, evaluator=evaluator[1])) 
+model = ModelFactory.create("attentionsitedti")
+preprocesses = ddd.data.PreprocessingList(model.default_preprocess(
+    "SMILES", "pdb_id", "Label"))
+dataset = ddd.data.DatasetFactory.create(
+    "human", file_paths="data/human/", preprocesses=preprocesses)
+datasets = dataset(split_method="random_split",
+                    frac=[0.8, 0.1, 0.1], seed=seed, sample=0.1)
 
-# testing the trained model
-model.evaluate(data_loaders[2], device, criterion, evaluator=evaluator[1]) 
+
+collate_fn = model.collate
+
+data_loader_train = DataLoader(
+    datasets[0], batch_size=64, shuffle=True, num_workers=0, pin_memory=True, drop_last=True, collate_fn=collate_fn)
+
+data_loader_val = DataLoader(datasets[1], drop_last=False, batch_size=32,
+                                num_workers=4, pin_memory=False, collate_fn=collate_fn)
+data_loader_test = DataLoader(datasets[2], drop_last=False, batch_size=32,
+                                num_workers=4, pin_memory=False, collate_fn=collate_fn)
+criterion = torch.nn.BCELoss()
+optimizer = OptimizerFactory.create(
+    "adam", model.parameters(), lr=1e-3, weight_decay=0.0)
+scheduler = None
+device = torch.device("cpu")
+model.to(device)
+train_evaluator = ddd.metrics.Evaluator(["accuracy_score"], threshold=0.5)
+test_evaluator = ddd.metrics.Evaluator(
+    ["accuracy_score", "f1_score", "auc", "precision_score", "recall_score"], threshold=0.5)
+epochs = 3000
+accum_iter = 1
+print(model.evaluate(data_loader_val, device,
+        criterion, evaluator=test_evaluator))
+for epoch in range(epochs):
+    print(f"Epoch {epoch}:")
+    model.train_one_epoch(data_loader_train, device, criterion,
+                            optimizer, num_epochs=200, scheduler=scheduler, evaluator=train_evaluator, grad_accum_steps=accum_iter)
+    print(model.evaluate(data_loader_val, device,
+                            criterion, evaluator=test_evaluator))
+
+print(model.evaluate(data_loader_test, device,
+                        criterion, evaluator=test_evaluator))
+                        
 ```
 ## Examples
 

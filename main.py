@@ -121,11 +121,9 @@ def main(args):
     # print(preprocesses)
     # preprocesses = preprocess_drug + preprocess_protein + preprocess_label
 
-    model = ModelFactory.create("drugvqa")
-    # model = AttentionDTA_TCBB()
+    model = ModelFactory.create("attentionsitedti")
     preprocesses = ddd.data.PreprocessingList(model.default_preprocess(
         "SMILES", "pdb_id", "Label"))
-    # model = AttentionDTA()
     dataset = ddd.data.DatasetFactory.create(
         "human", file_paths="data/human/", preprocesses=preprocesses)
     datasets = dataset(split_method="random_split",
@@ -145,8 +143,6 @@ def main(args):
     optimizer = OptimizerFactory.create(
         "adam", model.parameters(), lr=1e-3, weight_decay=0.0)
     scheduler = None
-    # SchedulerFactory.create(
-    # "cosine", optimizer, warmup_epochs=0, warmup_lr=1e-3, num_epochs=200)
     device = torch.device("cpu")
     model.to(device)
     train_evaluator = ddd.metrics.Evaluator(["accuracy_score"], threshold=0.5)

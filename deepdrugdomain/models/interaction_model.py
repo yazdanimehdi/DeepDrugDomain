@@ -55,12 +55,16 @@ class BaseInteractionModel(BaseModel):
     load_checkpoint(*args, **kwargs): Loads a model checkpoint.
     """
 
-    def __init__(self, embedding_dim: Optional[int], encoders: List[nn.Module], encoders_kwargs: List[Dict[str, Any]], head_kwargs: Dict[str, Any], aggregation_method: str, aggregation_module: Optional[Union[nn.Module, str]] = None, *args, **kwargs):
+    def __init__(self, embedding_dim: Optional[int], encoders: List[nn.Module], encoders_kwargs: List[Dict[str, Any]], head_kwargs: Dict[str, Any], aggregation_method: str, aggregation_module: Optional[Union[nn.Module, str]] = None, remove_head: bool = False, *args, **kwargs):
         super(BaseInteractionModel, self).__init__()
         self.encoders = [encoders[i](**encoders_kwargs[i])
                          for i in range(len(encoders))]
         self.head_kwargs = head_kwargs
         self.head = LinearHead(**head_kwargs)
+
+        if remove_head:
+            self.head = None
+
         self.embedding_dim = embedding_dim
         self.aggregation_method = aggregation_method
 
@@ -165,7 +169,9 @@ class BaseInteractionModel(BaseModel):
         elif self.aggregation_method == 'custom':
             x = self.aggregation_module(encoded_inputs)
 
-        x = self.head(x)
+        if self.head is not None:
+            x = self.head(x)
+
         return x
 
     def collate(self, *args, **kwargs) -> Any:
@@ -241,7 +247,7 @@ class BaseInteractionModel(BaseModel):
         predictions = []
         targets = []
         self.eval()
-        
+
         with tqdm(dataloader) as t:
             t.set_description('Testing')
             for batch_idx, x in enumerate(t):
