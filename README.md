@@ -51,6 +51,7 @@ For now you can use this environments for usage and development,
 ```bash
 conda create --name deepdrugdomain python=3.11
 conda activate deepdrugdomain
+pip install dgl -f https://data.dgl.ai/wheels/repo.html
 conda install -c conda-forge rdkit
 pip install git+https://github.com/yazdanimehdi/deepdrugdomain.git
 ```

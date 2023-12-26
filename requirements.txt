@@ -9,7 +9,6 @@ numpy
 pandas
 pandas-flavor
 ray[data,train,tune,serve]
-dgl -f https://data.dgl.ai/wheels/repo.html
 requests
 scikit-learn
 scipy
