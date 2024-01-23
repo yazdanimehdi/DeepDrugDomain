@@ -160,8 +160,6 @@ class GraphFromPocketPreprocessor(BasePreprocessor):
         if not isinstance(data, str):
             return None
         pdb = data.lower()
-        if len(pdb) != 4:
-            pdb = pdb[:4]
         # Ensure required keys are present in arguments
         required_keys = ["pdb_path", "protein_size_limit"]
         for item in required_keys:

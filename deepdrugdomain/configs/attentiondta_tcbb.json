@@ -1,73 +1,98 @@
 {
     "model": {
         "default": {
-            "protein_max_length": 1200,
-            "protein_kernel": [
-                4,
-                8,
-                12
-            ],
-            "protein_strides": [
-                1,
-                1,
-                1
-            ],
-            "protein_cnn_activation": [
-                "relu",
-                "relu",
-                "relu"
-            ],
-            "protein_cnn_dropout": 0.0,
-            "protein_cnn_normalization": null,
-            "protein_hidden_channels": [
-                32,
-                64
-            ],
-            "drug_max_length": 100,
-            "drug_kernel": [
-                4,
-                6,
-                8
-            ],
-            "drug_strides": [
-                1,
-                1,
-                1
-            ],
-            "drug_cnn_activation": [
-                "relu",
-                "relu",
-                "relu"
-            ],
-            "drug_cnn_dropout": 0.0,
-            "drug_cnn_normalization": null,
-            "drug_hidden_channels": [
-                32,
-                64
-            ],
-            "cnn_out_channels": 96,
-            "attention_layer": "attentiondta_attention",
-            "head_num": 8,
-            "char_dim": 128,
-            "head_output_dim": 1,
-            "head_dims": [
-                1024,
-                1024, 
-                512
-            ],
-            "head_activations": [
-                "leaky_relu",
-                "leaky_relu",
-                "leaky_relu",
-                "sigmoid"
-            ],
-            "head_normalization": null,
-            "head_dropout_rate": [
-                0.1,
-                0.1,
-                0.1,
-                0.0
-            ]
+            "protein_config": {
+                "max_length": 1200,
+                "dim": 128,
+                "input_embedding_dim": 26,
+                "kernel": [
+                    4,
+                    8,
+                    12
+                ],
+                "strides": [
+                    1,
+                    1,
+                    1
+                ],
+                "cnn_activation": [
+                    "relu",
+                    "relu",
+                    "relu"
+                ],
+                "cnn_dropout": 0.0,
+                "cnn_normalization": null,
+                "hidden_channels": [
+                    32,
+                    64
+                ],
+                "cnn_out_channels": 96,
+                "cnn_padding": 0,
+                "cnn_pooling": null,
+                "cnn_pooling_kwargs": null,
+                "permute_embedding_indices": [0, 2, 1]
+            },
+
+            "drug_config": {
+                "max_length": 100,
+                "dim": 128,
+                "input_embedding_dim": 65,
+                "kernel": [
+                    4,
+                    6,
+                    8
+                ],
+                "strides": [
+                    1,
+                    1,
+                    1
+                ],
+                "cnn_activation": [
+                    "relu",
+                    "relu",
+                    "relu"
+                ],
+                "cnn_dropout": 0.0,
+                "cnn_normalization": null,
+                "hidden_channels": [
+                    32,
+                    64
+                ],
+                "cnn_out_channels": 96,
+                "cnn_padding": 0,
+                "cnn_pooling": null,
+                "cnn_pooling_kwargs": null,
+                "permute_embedding_indices": [0, 2, 1]
+            },
+            
+            "aggregation_config": {
+                "attention_layer": "attentiondta_attention",
+                "head_num": 8
+            },
+
+
+            "head_config": {
+                "head_output_dim": 1,
+                "head_dims": [
+                    1024,
+                    1024, 
+                    512
+                ],
+                "head_activations": [
+                    "leaky_relu",
+                    "leaky_relu",
+                    "leaky_relu",
+                    "sigmoid"
+                ],
+                "head_normalization": null,
+                "head_dropout_rate": [
+                    0.1,
+                    0.1,
+                    0.1,
+                    0.0
+                ]
+            }
+
         }
     }
 }

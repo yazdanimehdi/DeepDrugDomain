@@ -30,7 +30,7 @@ for accurate drug-protein interaction prediction and analysis.
 
 
 from functools import partial
-from typing import Any, Callable, List, Optional, Sequence, Tuple, Type
+from typing import Any, Callable, List, Optional, Sequence, Tuple, Type, Dict, Union
 import numpy as np
 
 from tqdm import tqdm
@@ -44,7 +44,7 @@ from torch import nn
 import torch.nn.functional as F
 from deepdrugdomain.utils.weight_init import trunc_normal_
 from torch.autograd import Variable
-from ..base_model import BaseModel
+from ..interaction_model import BaseInteractionModel
 from deepdrugdomain.metrics import Evaluator
 from torch.utils.data import DataLoader
 from torch.optim.optimizer import Optimizer
@@ -73,95 +73,47 @@ class DrugVQASequentialAttention(nn.Module):
         return embed
 
 
-@ModelFactory.register('drugvqa')
-class DrugVQA(BaseModel):
-    def __init__(self,
-                 attention_layers_smile: str,
-                 attention_layers_smile_kwargs: dict,
-                 attention_layers_seq: str,
-                 attention_layers_seq_kwargs: dict,
-                 contact_map_in_channels: int,
-                 contact_map_out_channels: int,
-                 contact_map_kernel_size: int,
-                 contact_map_stride: int,
-                 contact_map_activation_fn: str,
-                 contact_map_normalization_layer: str,
-                 vocab_size_smiles: int,
-                 vocab_size_seq: int,
-                 embedding_dim: int,
-                 resnet_block1: str,
-                 resnet_block1_kwargs: dict,
-                 resnet_block1_layers: int,
-                 resnet_block2: str,
-                 resnet_block2_kwargs: dict,
-                 resnet_block2_layers: int,
-                 lstm_hid_dim: int,
-                 lstm_layers: int,
-                 lstm_bidirectional: bool,
-                 lstm_dropout: float,
-                 num_batches: int,
-                 head_dropout_rate: float,
-                 head_activation_fn: Optional[str],
-                 head_normalization: Optional[str],
-                 head_dims: Sequence[int]):
+class DrugVQADrugEncoder(nn.Module):
+    def __init__(self, drug_config: Dict[str, Any]) -> None:
         super().__init__()
-
-        self.lstm_hid_dim = lstm_hid_dim
-        self.embedding_dim = embedding_dim
-        self.head_dims = head_dims
-        self.head_dropout_rate = head_dropout_rate
-        self.head_activation_fn = head_activation_fn
-        self.head_normalization = head_normalization
-        # rnn
-        self.embeddings = nn.Embedding(vocab_size_smiles, embedding_dim)
-        self.seq_embed = nn.Embedding(vocab_size_seq, embedding_dim)
-        self.lstm = LSTMEncoder(embedding_dim, lstm_hid_dim,
-                                lstm_layers, lstm_dropout, lstm_bidirectional)
+        self.embeddings = nn.Embedding(
+            drug_config["vocab_size_smiles"], drug_config["embedding_dim"])
+        self.lstm = LSTMEncoder(drug_config["embedding_dim"], drug_config["lstm_hid_dim"],
+                                drug_config["lstm_layers"], drug_config["lstm_dropout"], drug_config["lstm_bidirectional"])
         self.smile_attention = LayerFactory.create(
-            attention_layers_smile, **attention_layers_smile_kwargs)
-        self.vocab_size_smiles = vocab_size_smiles
-        self.vocab_size_seq = vocab_size_seq
-        # cnn
-        self.conv = nn.Conv2d(contact_map_in_channels, contact_map_out_channels,
-                              kernel_size=contact_map_kernel_size, stride=contact_map_stride)
-        self.bn = LayerFactory.create(
-            contact_map_normalization_layer, contact_map_out_channels)
-        self.contact_map_act = ActivationFactory.create(
-            contact_map_activation_fn)
+            drug_config["attention_layers_smile"], **drug_config["attention_layers_smile_kwargs"])
 
-        self.res_block1 = nn.Sequential(*[LayerFactory.create(
-            resnet_block1, inplanes=contact_map_out_channels, planes=contact_map_out_channels, **resnet_block1_kwargs) for _ in range(resnet_block1_layers)])
-
-        self.res_block2 = nn.Sequential(*[LayerFactory.create(
-            resnet_block2, inplanes=contact_map_out_channels, planes=contact_map_out_channels, **resnet_block2_kwargs) for _ in range(resnet_block2_layers)])
-
-        self.seq_attention = LayerFactory.create(
-            attention_layers_seq, **attention_layers_seq_kwargs)
-
-        # Prediction layer
-        self.head = LinearHead(38, 1, self.head_dims,
-                               self.head_activation_fn, self.head_dropout_rate, head_normalization)
-
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
-
-    def get_classifier(self):
-        return self.head
-
-    def forward(self, x1, x2):
-
-        smile_embed = self.embeddings(x1)
+    def forward(self, x):
+        smile_embed = self.embeddings(x)
         outputs = self.lstm(smile_embed)
         avg_sentence_embed = self.smile_attention(outputs)
-        pic = self.conv(x2)
+
+        return avg_sentence_embed
+
+
+class DrugVQAProteinEncoder(nn.Module):
+    def __init__(self, protein_config: Dict[str, Any]) -> None:
+        super().__init__()
+        self.conv = nn.Conv2d(protein_config["contact_map_in_channels"], protein_config["contact_map_out_channels"],
+                              kernel_size=protein_config["contact_map_kernel_size"], stride=protein_config["contact_map_stride"])
+        self.bn = LayerFactory.create(
+            protein_config["contact_map_normalization_layer"], protein_config["contact_map_out_channels"])
+        self.contact_map_act = ActivationFactory.create(
+            protein_config["contact_map_activation_fn"])
+
+        self.res_block1 = nn.Sequential(*[LayerFactory.create(
+            protein_config["resnet_block1"], inplanes=protein_config["contact_map_out_channels"], planes=protein_config["contact_map_out_channels"], **protein_config["resnet_block1_kwargs"]) for _ in range(protein_config["resnet_block1_layers"])])
+
+        self.res_block2 = nn.Sequential(*[LayerFactory.create(
+            protein_config["resnet_block2"], inplanes=protein_config["contact_map_out_channels"], planes=protein_config["contact_map_out_channels"], **protein_config["resnet_block2_kwargs"]) for _ in range(protein_config["resnet_block2_layers"])])
+
+        self.seq_attention = LayerFactory.create(
+            protein_config["attention_layers_seq"], **protein_config["attention_layers_seq_kwargs"])
+
+    def forward(self, x):
+        pic = self.conv(x)
         pic = self.bn(pic)
-        avg_sentence_embed = torch.mean(smile_embed, 1)
+
         pic = self.contact_map_act(pic)
 
         pic = self.res_block1(pic)
@@ -172,9 +124,57 @@ class DrugVQA(BaseModel):
         pic_emb = pic_emb.permute(0, 2, 1)
         avg_seq_embed = self.seq_attention(pic_emb)
 
-        out = torch.cat([avg_sentence_embed, avg_seq_embed], dim=1)
+        return avg_seq_embed
 
-        return self.head(out)
+
+@ModelFactory.register('drugvqa')
+class DrugVQA(BaseInteractionModel):
+    def __init__(self,
+                 num_batches: int,
+                 drug_config: Dict[str, Any],
+                 protein_config: Dict[str, Any],
+                 head_config: Dict[str, Any]):
+        drug_encoder = DrugVQADrugEncoder(drug_config)
+        protein_encoder = DrugVQAProteinEncoder(protein_config)
+        encoders = [drug_encoder, protein_encoder]
+        head_config['input_size'] = drug_config["lstm_hid_dim"] * 2 + \
+            protein_config["contact_map_out_channels"]
+
+        super().__init__(
+            embedding_dim=None,
+            encoders=encoders,
+            head_kwargs=head_config,
+            aggregation_method='concat',
+        )
+        self.drug_encoder = drug_encoder
+        self.protein_encoder = protein_encoder
+        self.vocab_size_smiles = drug_config["vocab_size_smiles"]
+        self.drug_config = drug_config
+        self.protein_config = protein_config
+        self.num_batches = num_batches
+
+    def get_drug_encoder(self, smile_attr):
+        return {
+            "encoder": self.drug_encoder,
+            "preprocessor": self.default_preprocess(smile_attr, None, None),
+            "output_dim": self.drug_config["lstm_hid_dim"] * 2
+        }
+
+    def get_protein_encoder(self, target_seq_attr):
+        return {
+            "encoder": self.protein_encoder,
+            "preprocessor": self.default_preprocess(None, target_seq_attr, None),
+            "output_dim": self.protein_config["contact_map_out_channels"]
+        }
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            trunc_normal_(m.weight, std=.02)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
 
     def predict(self, *args, **kwargs) -> Any:
         return super().predict(*args, **kwargs)
@@ -302,28 +302,41 @@ class DrugVQA(BaseModel):
 
         return metrics
 
-    def reset_head(self) -> None:
-        pass
-        self.head = LinearHead(self.embedding_dim * self.sequence_length, 1, self.head_dims,
-                               self.head_activation_fn, self.head_dropout_rate, self.head_normalization)
-
     def load_checkpoint(self, *args, **kwargs) -> None:
         return super().load_checkpoint(*args, **kwargs)
 
     def save_checkpoint(self, *args, **kwargs) -> None:
         return super().save_checkpoint(*args, **kwargs)
 
-    def default_preprocess(self, smile_attr, pdb_id_attr, label_attr) -> List[PreprocessingObject]:
-        preprocess_drug = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="kword_encoding_tensor",
-                                              preprocessing_settings={"window": 1,
-                                                                      "stride": 1,
-                                                                      "convert_deepsmiles": False,
-                                                                      "one_hot": False,
-                                                                      "max_length": None,
-                                                                      "num_of_combinations": self.vocab_size_smiles}, in_memory=True, online=False)
-        preprocess_protein = PreprocessingObject(
-            attribute=pdb_id_attr, from_dtype="pdb_id", to_dtype="contact_map", preprocessing_settings={"pdb_path": "data/pdb/"}, in_memory=False, online=False)
-        preprocess_label = PreprocessingObject(
-            attribute=label_attr, from_dtype="binary", to_dtype="binary_tensor", preprocessing_settings={}, in_memory=True, online=True)
+    def default_preprocess(self, smile_attr: Optional[str] = None, pdb_id_attr: Optional[str] = None, label_attr: Optional[str] = None) -> Union[PreprocessingObject, List[PreprocessingObject]]:
 
-        return [preprocess_drug, preprocess_protein, preprocess_label]
+        assert smile_attr is not None or pdb_id_attr is not None, "At least one of smile_attr or target_seq_attr must be specified."
+
+        if pdb_id_attr is None:
+            preprocess_drug = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="kword_encoding_tensor",
+                                                  preprocessing_settings={"window": 1,
+                                                                          "stride": 1,
+                                                                          "convert_deepsmiles": False,
+                                                                          "one_hot": False,
+                                                                          "max_length": None,
+                                                                          "num_of_combinations": self.vocab_size_smiles}, in_memory=True, online=False)
+            return preprocess_drug
+        elif smile_attr is None:
+            preprocess_protein = PreprocessingObject(
+                attribute=pdb_id_attr, from_dtype="pdb_id", to_dtype="contact_map", preprocessing_settings={"pdb_path": "data/pdb/"}, in_memory=False, online=False)
+            return preprocess_protein
+
+        else:
+            preprocess_drug = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="kword_encoding_tensor",
+                                                  preprocessing_settings={"window": 1,
+                                                                          "stride": 1,
+                                                                          "convert_deepsmiles": False,
+                                                                          "one_hot": False,
+                                                                          "max_length": None,
+                                                                          "num_of_combinations": self.vocab_size_smiles}, in_memory=True, online=False)
+            preprocess_protein = PreprocessingObject(
+                attribute=pdb_id_attr, from_dtype="pdb_id", to_dtype="contact_map", preprocessing_settings={"pdb_path": "data/pdb/"}, in_memory=False, online=False)
+            preprocess_label = PreprocessingObject(
+                attribute=label_attr, from_dtype="binary", to_dtype="binary_tensor", preprocessing_settings={}, in_memory=True, online=True)
+
+            return [preprocess_drug, preprocess_protein, preprocess_label]

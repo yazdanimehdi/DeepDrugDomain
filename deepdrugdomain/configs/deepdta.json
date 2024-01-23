@@ -2,7 +2,7 @@
     "model": {
         "default": {
             "embedding_dim": 128,
-            "encoder_ligand_kwargs": {
+            "drug_config": {
                 "input_channels": 100,
                 "hidden_channels": [256],
                 "output_channels": 512,
@@ -14,10 +14,9 @@
                 "activations": ["relu", "relu"],
                 "dropouts": 0.0,
                 "normalization": null,
-                "embedding_layer": true,
                 "input_embedding_dim": 64
             },
-            "encoder_protein_kwargs": {
+            "protein_config": {
                 "input_channels": 1000,
                 "hidden_channels": [256],
                 "output_channels": 512,
@@ -29,13 +28,12 @@
                 "activations": ["relu", "relu"],
                 "dropouts": 0.0,
                 "normalization": null,
-                "embedding_layer": true,
                 "input_embedding_dim": 26
             },
-            "head_kwargs": {
+            "head_config": {
                 "output_size": 1,
                 "hidden_sizes": [1024, 1024, 512], 
-                "activations": ["relu", "relu", "relu", "sigmoid"],
+                "activations": ["relu", "relu", "relu", "relu"],
                 "dropouts": [0, 0.1, 0.1, 0.1], 
                 "normalization": null
             }

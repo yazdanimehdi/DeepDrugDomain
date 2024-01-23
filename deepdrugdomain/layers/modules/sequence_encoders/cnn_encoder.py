@@ -23,9 +23,8 @@ class CNNEncoder(nn.Module):
                  dropouts: Union[float, Sequence[float]] = 0.0,
                  normalization: Optional[Union[str,
                                                Sequence[Optional[str]]]] = None,
-                 embedding_layer: bool = False,
-                 embedding_dim: Optional[int] = None,
                  input_embedding_dim: Optional[int] = None,
+                 permute_embedding_indices: Optional[Sequence[int]] = None,
                  **kwargs) -> None:
         """
         Initialize the CNN encoder.
@@ -70,9 +69,10 @@ class CNNEncoder(nn.Module):
         assert len(cnn_channels) - 1 == len(kernel_sizes) == len(strides) == len(dropouts) == len(normalization) == len(
             activations) == len(pooling) == len(pooling_kwargs), "The number of CNN layers parameters must be the same"
 
-        if embedding_layer:
-            assert embedding_dim is not None and input_embedding_dim is not None, "Embedding layer requires embedding_dim and input_embedding_dim to be specified"
-            layers.append(nn.Embedding(input_embedding_dim, embedding_dim))
+        if input_embedding_dim is not None:
+            layers.append(nn.Embedding(input_embedding_dim, self.input_channels))
+            if permute_embedding_indices is not None:
+                layers.append(LayerFactory.create("permute", permute_embedding_indices))
 
         for i in range(len(cnn_channels) - 1):
             layers.append(

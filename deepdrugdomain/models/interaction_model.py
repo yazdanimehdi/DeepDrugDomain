@@ -55,15 +55,16 @@ class BaseInteractionModel(BaseModel):
     load_checkpoint(*args, **kwargs): Loads a model checkpoint.
     """
 
-    def __init__(self, embedding_dim: Optional[int], encoders: List[nn.Module], encoders_kwargs: List[Dict[str, Any]], head_kwargs: Dict[str, Any], aggregation_method: str, aggregation_module: Optional[Union[nn.Module, str]] = None, remove_head: bool = False, *args, **kwargs):
+    def __init__(self, embedding_dim: Optional[int], encoders: List[nn.Module], head_kwargs: Dict[str, Any], aggregation_method: str, aggregation_module: Optional[Union[nn.Module, str]] = None, remove_head: bool = False, return_encoded: bool = False, *args, **kwargs):
         super(BaseInteractionModel, self).__init__()
-        self.encoders = [encoders[i](**encoders_kwargs[i])
-                         for i in range(len(encoders))]
+        self.encoders = encoders
         self.head_kwargs = head_kwargs
         self.head = LinearHead(**head_kwargs)
 
         if remove_head:
             self.head = None
+
+        self.return_encoded = return_encoded
 
         self.embedding_dim = embedding_dim
         self.aggregation_method = aggregation_method
@@ -107,12 +108,11 @@ class BaseInteractionModel(BaseModel):
             assert embedding_dim is not None, 'Embedding dimension is not provided'
             self.weight_matrix = [torch.nn.Parameter(
                 torch.randn(embedding_dim)) for _ in range(len(encoders))]
+        
 
-    def forward(self,  *args):
-        assert len(args) == len(
-            self.encoders), 'Number of inputs must be the same as the number of encoders'
-        batch_size = args[0].shape[0]
-        encoded_inputs = [self.encoders[i](args[i]) for i in range(len(args))]
+    def aggregate(self, encoded_inputs: List[torch.Tensor]) -> torch.Tensor:
+
+        batch_size = encoded_inputs[0].shape[0]
 
         if self.aggregation_method == 'concat':
             encoded_inputs = [x.view(batch_size, -1) for x in encoded_inputs]
@@ -169,7 +169,21 @@ class BaseInteractionModel(BaseModel):
         elif self.aggregation_method == 'custom':
             x = self.aggregation_module(encoded_inputs)
 
+        return x
+
+    def forward(self,  *args):
+        assert len(args) == len(
+            self.encoders), 'Number of inputs must be the same as the number of encoders'
+        x = [self.encoders[i](args[i]) for i in range(len(args))]
+
+        if self.return_encoded and self.head is None:
+            return x
+
+        elif not self.return_encoded and self.head is None:
+            x = self.aggregate(x)
+
         if self.head is not None:
+            x = self.aggregate(x)
             x = self.head(x)
 
         return x
@@ -205,12 +219,19 @@ class BaseInteractionModel(BaseModel):
                 if batch_idx >= last_batch_idx_to_accum:
                     accum_steps = last_accum_steps
 
-                target = x[-1]
-                inputs = [x[i].to(device)for i in range(len(x) - 1)]
+                outs = []
+                for item in range(len(x[0])):
+                    inp = [x[i][item].unsqueeze(0).to(device)
+                           for i in range(len(x) - 1)]
+                    out = self.forward(*inp)
 
-                out = self.forward(*inputs)
+                    if isinstance(out, tuple):
+                        out = out[0]
 
-                target = target.to(
+                    outs.append(out)
+
+                out = torch.stack(outs, dim=0).squeeze(1)
+                target = x[-1].to(
                     device).view(-1, 1).to(torch.float)
 
                 loss = criterion(out, target)
@@ -243,22 +264,29 @@ class BaseInteractionModel(BaseModel):
                         num_updates=num_updates, metric=metrics["loss"])
 
     def evaluate(self, dataloader: DataLoader, device: torch.device, criterion: Callable, evaluator: Optional[Type[Evaluator]] = None, logger: Optional[Any] = None) -> Any:
+        """
+            Evaluate the model on the given dataset.
+        """
         losses = []
         predictions = []
         targets = []
         self.eval()
-
         with tqdm(dataloader) as t:
             t.set_description('Testing')
             for batch_idx, x in enumerate(t):
-                target = x[-1]
-                inputs = [x[i].to(device)
-                          for i in range(len(x) - 1)]
-
+                outs = []
                 with torch.no_grad():
-                    out = self.forward(*inputs)
+                    for item in range(len(x[1])):
+                        inp = [x[i][item].unsqueeze(0).to(device)
+                               for i in range(len(x) - 1)]
+                        out = self.forward(*inp)
+                        if isinstance(out, tuple):
+                            out = out[0]
 
-                target = target.to(
+                        outs.append(out)
+
+                out = torch.stack(outs, dim=0).squeeze(1)
+                target = x[-1].to(
                     device).view(-1, 1).to(torch.float)
 
                 loss = criterion(out, target)
@@ -276,6 +304,7 @@ class BaseInteractionModel(BaseModel):
 
         if logger is not None:
             logger.log(metrics)
+
         return metrics
 
     def reset_head(self) -> None:

@@ -136,7 +136,7 @@ class BindingSiteAugmentedDTA:
                 preprocess_drug = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="graph", preprocessing_settings={
                     "fragment": False, "max_block": 6, "max_sr": 8, "min_frag_atom": 1, "node_featurizer": feat}, in_memory=True, online=False)
                 preprocess_protein = PreprocessingObject(attribute=pdb_id_attr, from_dtype="pdb_id", to_dtype="binding_pocket_graph", preprocessing_settings={
-                    "pdb_path": "data/pdb/", "protein_size_limit": 10000, "selection_model": self.trained_model_path}, in_memory=False, online=False)
+                    "pdb_path": "data/pdb/", "protein_size_limit": 10000}, in_memory=False, online=False)
                 return [preprocess_drug, preprocess_protein] + original_default_preprocess
 
         return AugmentedModel

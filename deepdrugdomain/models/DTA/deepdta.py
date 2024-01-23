@@ -31,44 +31,37 @@ from deepdrugdomain.data import PreprocessingObject
 
 @ModelFactory.register('deepdta')
 class DeepDTA(BaseInteractionModel):
-    def __init__(self, embedding_dim, encoder_ligand_kwargs, encoder_protein_kwargs, head_kwargs, *args, **kwargs):
-        encoder_ligand_kwargs['embedding_dim'] = embedding_dim
-        encoder_protein_kwargs['embedding_dim'] = embedding_dim
-        head_kwargs['input_size'] = encoder_ligand_kwargs["output_channels"] + \
-            encoder_protein_kwargs["output_channels"]
-        self.max_length_ligand = encoder_ligand_kwargs['input_channels']
-        self.max_length_protein = encoder_protein_kwargs['input_channels']
-        encoders = [CNNEncoder, CNNEncoder]
-        encoder_kwargs = [encoder_ligand_kwargs, encoder_protein_kwargs]
+    def __init__(self, drug_config, protein_config, head_config, *args, **kwargs):
+        head_config['input_size'] = drug_config["output_channels"] + \
+            protein_config["output_channels"]
+        self.max_length_ligand = drug_config['input_channels']
+        self.max_length_protein = protein_config['input_channels']
+        encoders = [CNNEncoder(**drug_config), CNNEncoder(**protein_config)]
 
         super(DeepDTA, self).__init__(
-            embedding_dim,
+            None,
             encoders=encoders,
-            encoders_kwargs=encoder_kwargs,
-            head_kwargs=head_kwargs,
+            head_kwargs=head_config,
             aggregation_method='concat',
-            *args,
-            **kwargs
         )
 
     def collate(self, batch):
-        ligand, protein, label = zip(*batch)
-        ligand = torch.stack(ligand)
-        protein = torch.stack(protein)
-        label = torch.stack(label)
-        return ligand, protein, label
+        a = zip(*batch)
+        a = [torch.stack(x) for x in a]
+
+        return a
 
     def default_preprocess(self, smile_attr, target_seq_attr, label_attr):
         protein_dict = {x: i for i, x in enumerate("ACBEDGFIHKMLONQPSRTWVYXZ")}
         preprocess_drug = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="kword_encoding_tensor",
-                                            preprocessing_settings={"window": 1,
-                                                                    "stride": 1,
-                                                                    "convert_deepsmiles": False, 
-                                                                    "one_hot": False, 
-                                                                    "max_length": self.max_length_ligand}, in_memory=True, online=False)
+                                              preprocessing_settings={"window": 1,
+                                                                      "stride": 1,
+                                                                      "convert_deepsmiles": False,
+                                                                      "one_hot": False,
+                                                                      "max_length": self.max_length_ligand}, in_memory=True, online=False)
         preprocess_protein = PreprocessingObject(attribute=target_seq_attr, from_dtype="protein_sequence", to_dtype="kmers_encoded_tensor", preprocessing_settings={
             "window": 1, "stride": 1,
             "one_hot": False, "word_dict": protein_dict, "max_length": self.max_length_protein}, in_memory=True, online=False)
-        preprocess_label = PreprocessingObject(attribute=label_attr,  from_dtype="binary",
-                                               to_dtype="binary_tensor", preprocessing_settings={}, in_memory=True, online=True)
+        preprocess_label = PreprocessingObject(attribute=label_attr,  from_dtype="tensor",
+                                               to_dtype="log_tensor", preprocessing_settings={}, in_memory=True, online=True)
         return [preprocess_drug, preprocess_protein, preprocess_label]

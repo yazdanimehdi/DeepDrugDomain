@@ -4,3 +4,4 @@ from .graph_layers import *
 from .bert import *
 from .resnet import *
 from .modules import *
+from .general_layers import *

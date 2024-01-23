@@ -2,6 +2,7 @@ import argparse
 import numpy as np
 import torch
 from deepdrugdomain.models.DTA.attentiondta_tcbb import AttentionDTA_TCBB
+from deepdrugdomain.models.augmentation import AugmentedModelFactory
 from deepdrugdomain.optimizers.factory import OptimizerFactory
 from deepdrugdomain.schedulers.factory import SchedulerFactory
 from torch.utils.data import DataLoader
@@ -11,6 +12,7 @@ from dgllife.utils import CanonicalAtomFeaturizer, CanonicalBondFeaturizer
 from pathlib import Path
 from tqdm import tqdm
 import deepdrugdomain as ddd
+from torch import nn
 
 
 def get_args_parser():
@@ -120,34 +122,36 @@ def main(args):
     # preprocesses = preprocess_drug + preprocess_protein + preprocess_label
     # print(preprocesses)
     # preprocesses = preprocess_drug + preprocess_protein + preprocess_label
-
-    model = ModelFactory.create("attentionsitedti")
+    aug_model = ModelFactory.create("drugvqa")
+    aug_protein = aug_model.get_protein_encoder("pdb_id")
+    factory = AugmentedModelFactory([aug_protein])
+    model = factory.create("deepdta")
     preprocesses = ddd.data.PreprocessingList(model.default_preprocess(
-        "SMILES", "pdb_id", "Label"))
+        "SMILES", "Target_Seq", "Y"))
     dataset = ddd.data.DatasetFactory.create(
-        "human", file_paths="data/human/", preprocesses=preprocesses)
+        "davis", file_paths="data/davis/", preprocesses=preprocesses)
     datasets = dataset(split_method="random_split",
-                       frac=[0.8, 0.1, 0.1], seed=seed, sample=0.1)
-
+                       frac=[0.8, 0.1, 0.1], seed=seed, sample=0.05)
 
     collate_fn = model.collate
 
     data_loader_train = DataLoader(
-        datasets[0], batch_size=64, shuffle=True, num_workers=0, pin_memory=True, drop_last=True, collate_fn=collate_fn)
+        datasets[0], batch_size=16, shuffle=True, num_workers=0, pin_memory=True, drop_last=True, collate_fn=collate_fn)
 
     data_loader_val = DataLoader(datasets[1], drop_last=False, batch_size=32,
                                  num_workers=4, pin_memory=False, collate_fn=collate_fn)
     data_loader_test = DataLoader(datasets[2], drop_last=False, batch_size=32,
                                   num_workers=4, pin_memory=False, collate_fn=collate_fn)
-    criterion = torch.nn.BCELoss()
+    criterion = torch.nn.MSELoss()
     optimizer = OptimizerFactory.create(
         "adam", model.parameters(), lr=1e-3, weight_decay=0.0)
     scheduler = None
     device = torch.device("cpu")
     model.to(device)
-    train_evaluator = ddd.metrics.Evaluator(["accuracy_score"], threshold=0.5)
+    train_evaluator = ddd.metrics.Evaluator(
+        ["mean_absolute_error", "r2_score"], threshold=0.5)
     test_evaluator = ddd.metrics.Evaluator(
-        ["accuracy_score", "f1_score", "auc", "precision_score", "recall_score"], threshold=0.5)
+        ["mean_absolute_error", "r2_score", "concordance_index"], threshold=0.5)
     epochs = 3000
     accum_iter = 1
     print(model.evaluate(data_loader_val, device,

@@ -290,7 +290,6 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
                Any: The prepared data.
         """
         return data
-    
 
     @ray.remote
     def _worker(self, data):
@@ -369,7 +368,7 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
 
         """
         data = self.data_preparations(data)
-        ray.init(num_cpus=num_threads)
+        ray.init(logging_level=0, num_cpus=num_threads)
         if in_memory:
             futures = {d: self._worker.remote(self, d) for d in data}
             all_processed_data, invalid_results = self._process(futures, data)
@@ -402,7 +401,7 @@ class BasePreprocessor(AbstractBasePreprocessor, ABC):
               Process data and retrieve relevant information for newly added data.
         """
         data = self.data_preparations(data)
-        ray.init(num_cpus=num_threads)
+        ray.init(logging_level=0, num_cpus=num_threads)
         if in_memory:
             futures = {d: self._worker.remote(self, d) for d in data}
             all_processed_data, invalid_results = self._process(futures, data)

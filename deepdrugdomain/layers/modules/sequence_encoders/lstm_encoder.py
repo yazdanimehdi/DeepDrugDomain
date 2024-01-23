@@ -31,10 +31,7 @@ class LSTMEncoder(nn.Module):
         self.bidirectional = bidirectional
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers=num_layers,
                             batch_first=True, dropout=dropout, bidirectional=bidirectional, **kwargs)
-        self.h0 = Variable(torch.zeros(
-            self.num_layers * (2 if self.bidirectional else 1), batch_size, self.hidden_size))
-        self.c0 = Variable(torch.zeros(
-            self.num_layers * (2 if self.bidirectional else 1), batch_size, self.hidden_size))
+        self.batch_size = batch_size
 
     def forward(self, x: Any) -> Any:
         """
@@ -44,7 +41,10 @@ class LSTMEncoder(nn.Module):
             returns:
                 Any: The encoded sequence.
         """
-
-        output, (self.h0, self.c0) = self.lstm(x, (self.h0, self.c0))
+        h0 = Variable(torch.zeros(
+            self.num_layers * (2 if self.bidirectional else 1), self.batch_size, self.hidden_size))
+        c0 = Variable(torch.zeros(
+            self.num_layers * (2 if self.bidirectional else 1), self.batch_size, self.hidden_size))
+        output, (h0, c0) = self.lstm(x, (h0, c0))
 
         return output

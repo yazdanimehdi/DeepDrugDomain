@@ -75,103 +75,94 @@ class MultiHeadAttention(nn.Module):
 
         return drug, protein
 
+
 @ModelFactory.register('attentiondta_tcbb')
 class AttentionDTA_TCBB(BaseModel):
     def __init__(self,
-                 protein_max_length: int,
+                 protein_config: Dict[str, Any],
 
-                 protein_kernel: List[int],
-                 protein_strides: List[int],
-                 protein_cnn_activation: List[str],
-                 protein_cnn_dropout: List[float],
-                 protein_cnn_normalization: List[str],
-                 protein_hidden_channels: List[int],
+                 drug_config: Dict[str, Any],
 
-                 drug_max_length: int,
-                 drug_kernel: List[int],
-                 drug_strides: List[int],
-                 drug_cnn_activation: List[str],
-                 drug_cnn_dropout: List[float],
-                 drug_cnn_normalization: List[str],
-                 drug_hidden_channels: List[int],
+                 aggregation_config: Dict[str, Any],
 
-                 cnn_out_channels,
+                 head_config: Dict[str, Any],
 
-                 attention_layer: str,
-                 head_num: int,
-
-                 char_dim: int,
-
-                 head_output_dim: int,
-                 head_dims: List[int],
-                 head_activations: List[str],
-                 head_normalization: List[str],
-                 head_dropout_rate: List[float],
                  ):
         super(AttentionDTA_TCBB, self).__init__()
-        self.dim = char_dim
-        self.head_num = head_num
-        self.drug_max_length = drug_max_length
-        self.drug_kernel = drug_kernel
-        self.protein_max_length = protein_max_length
-        self.protein_kernel = protein_kernel
 
-        self.protein_embed = nn.Embedding(26, self.dim, padding_idx=0)
-        self.drug_embed = nn.Embedding(65, self.dim, padding_idx=0)
+        self.drug_max_length = drug_config["max_length"]
+        self.protein_max_length = protein_config["max_length"]
+
+        assert protein_config["cnn_out_channels"] == drug_config[
+            "cnn_out_channels"], "The output channels of the drug and protein CNN encoders must be the same."
+        self.cnn_out_channels = protein_config['cnn_out_channels']
 
         self.drug_cnn_encoder = CNNEncoder(
-            input_channels=self.dim,
-            hidden_channels=protein_hidden_channels,
-            output_channels=cnn_out_channels,
-            kernel_sizes=protein_kernel,
-            strides=protein_strides,
-            pooling=None,
-            pooling_kwargs=None,
-            paddings=0,
-            activations=protein_cnn_activation,
-            dropouts=protein_cnn_dropout,
-            normalization=protein_cnn_normalization,
+            input_channels=drug_config["dim"],
+            hidden_channels=drug_config["hidden_channels"],
+            output_channels=drug_config["cnn_out_channels"],
+            kernel_sizes=drug_config["kernel"],
+            strides=drug_config["strides"],
+            pooling=drug_config["cnn_pooling"],
+            pooling_kwargs=drug_config["cnn_pooling_kwargs"],
+            paddings=drug_config["cnn_padding"],
+            activations=drug_config["cnn_activation"],
+            dropouts=drug_config["cnn_dropout"],
+            normalization=drug_config["cnn_normalization"],
+            input_embedding_dim=drug_config["input_embedding_dim"],
+            permute_embedding_indices=drug_config["permute_embedding_indices"]
         )
 
         self.drug_pooling = nn.AdaptiveAvgPool1d(1)
 
         self.protein_cnn_encoder = CNNEncoder(
-            input_channels=self.dim,
-            hidden_channels=drug_hidden_channels,
-            output_channels=cnn_out_channels,
-            kernel_sizes=drug_kernel,
-            strides=drug_strides,
-            pooling=None,
-            pooling_kwargs=None,
-            paddings=0,
-            activations=drug_cnn_activation,
-            dropouts=drug_cnn_dropout,
-            normalization=drug_cnn_normalization,
+            input_channels=protein_config["dim"],
+            hidden_channels=protein_config["hidden_channels"],
+            output_channels=protein_config["cnn_out_channels"],
+            kernel_sizes=protein_config["kernel"],
+            strides=protein_config["strides"],
+            pooling=protein_config["cnn_pooling"],
+            pooling_kwargs=protein_config["cnn_pooling_kwargs"],
+            paddings=protein_config["cnn_padding"],
+            activations=protein_config["cnn_activation"],
+            dropouts=protein_config["cnn_dropout"],
+            normalization=protein_config["cnn_normalization"],
+            input_embedding_dim=protein_config["input_embedding_dim"],
+            permute_embedding_indices=protein_config["permute_embedding_indices"]
         )
 
         self.protein_pooling = nn.AdaptiveAvgPool1d(1)
 
         self.attention = LayerFactory.create(
-            attention_layer, cnn_out_channels, head_num)
+            aggregation_config['attention_layer'], self.cnn_out_channels,  aggregation_config['head_num'])
 
-        self.head_output_dim = head_output_dim
-        self.head_dims = head_dims
-        self.head_activations = head_activations
-        self.head_normalization = head_normalization
-        self.head_dropout_rate = head_dropout_rate
-        self.cnn_out_channels = cnn_out_channels
+        self.head_output_dim = head_config['head_output_dim']
+        self.head_dims = head_config['head_dims']
+        self.head_activations = head_config['head_activations']
+        self.head_normalization = head_config['head_normalization']
+        self.head_dropout_rate = head_config['head_dropout_rate']
 
         self.head = LinearHead(self.cnn_out_channels * 2, self.head_output_dim, self.head_dims,
                                self.head_activations, self.head_dropout_rate, self.head_normalization)
+        
+    def get_drug_encoder(self, smile_attr):
+        return {
+            "encoder": self.drug_cnn_encoder,
+            "preprocessor": self.default_preprocess(smile_attr),
+            "output_dim": self.cnn_out_channels
+        }
+    
+    def get_protein_encoder(self, target_seq_attr):
+        return {
+            "encoder": self.protein_cnn_encoder,
+            "preprocessor": self.default_preprocess(target_seq_attr),
+            "output_dim": self.cnn_out_channels
+        }
 
     def forward(self, drug, protein):
-        drug_embed = self.drug_embed(drug)
-        protein_embed = self.protein_embed(protein)
-        drug_embed = drug_embed.permute(0, 2, 1)
-        protein_embed = protein_embed.permute(0, 2, 1)
 
-        drug_conv = self.drug_cnn_encoder(drug_embed)
-        protein_conv = self.protein_cnn_encoder(protein_embed)
+        drug_conv = self.drug_cnn_encoder(drug)
+        protein_conv = self.protein_cnn_encoder(protein)
 
         drug_conv, protein_conv = self.attention(drug_conv, protein_conv)
         drug_conv = self.drug_pooling(drug_conv).squeeze(2)
@@ -299,7 +290,7 @@ class AttentionDTA_TCBB(BaseModel):
     def save_checkpoint(self, *args, **kwargs) -> None:
         return super().save_checkpoint(*args, **kwargs)
 
-    def default_preprocess(self, smile_attr, target_seq_attr, label_attr):
+    def default_preprocess(self, smile_attr=None, target_seq_attr=None, label_attr=None):
         CHARISOSMISET = {"#": 29, "%": 30, ")": 31, "(": 1, "+": 32, "-": 33, "/": 34, ".": 2,
                          "1": 35, "0": 3, "3": 36, "2": 4, "5": 37, "4": 5, "7": 38, "6": 6,
                          "9": 39, "8": 7, "=": 40, "A": 41, "@": 8, "C": 42, "B": 9, "E": 43,
@@ -308,18 +299,37 @@ class AttentionDTA_TCBB(BaseModel):
                          "V": 18, "Y": 52, "[": 53, "Z": 19, "]": 54, "\\": 20, "a": 55, "c": 56,
                          "b": 21, "e": 57, "d": 22, "g": 58, "f": 23, "i": 59, "h": 24, "m": 60,
                          "l": 25, "o": 61, "n": 26, "s": 62, "r": 27, "u": 63, "t": 28, "y": 64}
-        
+
         protein_dict = {x: i for i, x in enumerate("ACBEDGFIHKMLONQPSRTWVYXZ")}
-        preprocess_drug = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="kword_encoding_tensor",
-                                            preprocessing_settings={"window": 1,
-                                                                    "stride": 1,
-                                                                    "word_dict": CHARISOSMISET,
-                                                                    "convert_deepsmiles": False, 
-                                                                    "one_hot": False, 
-                                                                    "max_length": self.drug_max_length}, in_memory=True, online=False)
-        preprocess_protein = PreprocessingObject(attribute=target_seq_attr, from_dtype="protein_sequence", to_dtype="kmers_encoded_tensor", preprocessing_settings={
-            "window": 1, "stride": 1,
-            "one_hot": False, "word_dict": protein_dict, "max_length": self.protein_max_length}, in_memory=True, online=False)
-        preprocess_label = PreprocessingObject(attribute=label_attr,  from_dtype="binary",
-                                               to_dtype="binary_tensor", preprocessing_settings={}, in_memory=True, online=True)
-        return [preprocess_drug, preprocess_protein, preprocess_label]
+        assert smile_attr is not None or target_seq_attr is not None, "At least one of smile_attr or target_seq_attr must be specified."
+        if target_seq_attr is None and label_attr is None:
+            preprocess_drug = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="kword_encoding_tensor",
+                                              preprocessing_settings={"window": 1,
+                                                                      "stride": 1,
+                                                                      "word_dict": CHARISOSMISET,
+                                                                      "convert_deepsmiles": False,
+                                                                      "one_hot": False,
+                                                                      "max_length": self.drug_max_length}, in_memory=True, online=False)
+            return preprocess_drug
+        
+        if smile_attr is None and label_attr is None:
+            preprocess_protein = PreprocessingObject(attribute=target_seq_attr, from_dtype="protein_sequence", to_dtype="kmers_encoded_tensor", preprocessing_settings={
+                "window": 1, "stride": 1,
+                "one_hot": False, "word_dict": protein_dict, "max_length": self.protein_max_length}, in_memory=True, online=False)
+            return preprocess_protein
+        
+        else:
+            preprocess_drug = PreprocessingObject(attribute=smile_attr, from_dtype="smile", to_dtype="kword_encoding_tensor",
+                                              preprocessing_settings={"window": 1,
+                                                                      "stride": 1,
+                                                                      "word_dict": CHARISOSMISET,
+                                                                      "convert_deepsmiles": False,
+                                                                      "one_hot": False,
+                                                                      "max_length": self.drug_max_length}, in_memory=True, online=False)
+            
+            preprocess_protein = PreprocessingObject(attribute=target_seq_attr, from_dtype="protein_sequence", to_dtype="kmers_encoded_tensor", preprocessing_settings={
+                "window": 1, "stride": 1,
+                "one_hot": False, "word_dict": protein_dict, "max_length": self.protein_max_length}, in_memory=True, online=False)
+            preprocess_label = PreprocessingObject(attribute=label_attr,  from_dtype="binary",
+                                                to_dtype="binary_tensor", preprocessing_settings={}, in_memory=True, online=True)
+            return [preprocess_drug, preprocess_protein, preprocess_label]

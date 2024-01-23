@@ -1,9 +1,25 @@
+from urllib.request import urlretrieve
 from Bio.PDB import PDBList
 import os
+import re
+import requests
 
-
+URL_RE = r"((http|https)\:\/\/)?[a-zA-Z0-9\.\/\?\:@\-_=#]+\.([a-zA-Z]){2,6}([a-zA-Z0-9\.\&\/\?\:@\-_=#])*"
 def download_pdb(pdb, path):
     # Check if PDB file exists locally, else download it
+    if re.match(URL_RE, pdb):
+        identifier = pdb.split("/")[-1]
+        response = requests.get(f"https://alphafold.ebi.ac.uk/api/prediction/{identifier}")
+        if response.status_code != 200:
+            raise ValueError
+        pdb_url = response.json()[0]["pdbUrl"]
+
+        urlretrieve(pdb_url, path + pdb + '.pdb')
+        return path + pdb + '.pdb'
+    
+    elif len(pdb) > 4:
+        pdb = pdb[:4]
+
     if not os.path.exists(path + pdb + '.pdb'):
         pdb_f = PDBList(verbose=False)
         pdb_f.retrieve_pdb_file(
