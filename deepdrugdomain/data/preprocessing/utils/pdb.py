@@ -13,9 +13,10 @@ def download_pdb(pdb, path):
         if response.status_code != 200:
             raise ValueError
         pdb_url = response.json()[0]["pdbUrl"]
+        filename = os.path.join(path, identifier + ".pdb")
 
-        urlretrieve(pdb_url, path + pdb + '.pdb')
-        return path + pdb + '.pdb'
+        urlretrieve(pdb_url, filename)
+        return filename
     
     elif len(pdb) > 4:
         pdb = pdb[:4]

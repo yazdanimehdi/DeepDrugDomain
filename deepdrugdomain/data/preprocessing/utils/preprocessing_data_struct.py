@@ -106,8 +106,8 @@ class PreprocessingObjectBase(ABC):
         """
         none_col_list = self.preprocess.collect_invalid_data(
             self.online, data_unique)
-
-        return data[~data[self.attribute].isin(none_col_list)]
+        data_new = data.dropna()
+        return data_new[~data_new[self.attribute].isin(none_col_list)]
 
     def _load_mapping(self, directory) -> Dict[Any, Any]:
         """

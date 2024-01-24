@@ -49,7 +49,7 @@ class BaseScheduler(ABC):
             self,
             optimizer: torch.optim.Optimizer,
             param_group_field: str = 'lr',
-            t_in_epochs: bool = True,
+            t_in_epochs: bool = False,
             noise_range_t=None,
             noise_type='normal',
             noise_pct=0.67,

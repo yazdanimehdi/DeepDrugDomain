@@ -17,17 +17,18 @@ from .factory import ModelFactory
 
 class AugmentedModel(BaseInteractionModel):
     def __init__(self, original_model_class, added_dim, encoders, preprocessors, custom_collate: Optional[Callable] = None, **kwargs):
-        original_model = original_model_class(
-            remove_head=True, return_encoded=False, **kwargs)
-        original_model.head_kwargs["input_size"] = original_model.head_kwargs["input_size"] + added_dim
-        original_model.head_kwargs["output_size"] = 1
-        original_model.head = None
+        kwargs_new = kwargs.copy()
+        kwargs_new["remove_head"] = True
+        original_model = original_model_class(**kwargs_new)
+        head_kwargs = original_model.head_kwargs
+        head_kwargs["input_size"] = original_model.head_kwargs["input_size"] + added_dim
         super().__init__(
             embedding_dim=None,
             encoders=encoders,
-            head_kwargs=original_model.head_kwargs,
+            head_kwargs=head_kwargs,
             aggregation_method='concat',
         )
+
         self.original_model = original_model
         self.preprocessors = preprocessors
         self.custom_collate = custom_collate

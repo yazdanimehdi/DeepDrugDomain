@@ -25,6 +25,7 @@ correctly formatted drug and target sequences for accurate affinity predictions.
 from deepdrugdomain.layers import CNNEncoder
 from ..factory import ModelFactory
 import torch
+from torch import nn
 from ..interaction_model import BaseInteractionModel
 from deepdrugdomain.data import PreprocessingObject
 
@@ -36,13 +37,13 @@ class DeepDTA(BaseInteractionModel):
             protein_config["output_channels"]
         self.max_length_ligand = drug_config['input_channels']
         self.max_length_protein = protein_config['input_channels']
-        encoders = [CNNEncoder(**drug_config), CNNEncoder(**protein_config)]
+        encoders = nn.ModuleList([CNNEncoder(**drug_config), CNNEncoder(**protein_config)])
 
         super(DeepDTA, self).__init__(
-            None,
             encoders=encoders,
             head_kwargs=head_config,
             aggregation_method='concat',
+            **kwargs
         )
 
     def collate(self, batch):

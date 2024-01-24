@@ -55,7 +55,7 @@ class BaseInteractionModel(BaseModel):
     load_checkpoint(*args, **kwargs): Loads a model checkpoint.
     """
 
-    def __init__(self, embedding_dim: Optional[int], encoders: List[nn.Module], head_kwargs: Dict[str, Any], aggregation_method: str, aggregation_module: Optional[Union[nn.Module, str]] = None, remove_head: bool = False, return_encoded: bool = False, *args, **kwargs):
+    def __init__(self, embedding_dim: Optional[int], encoders: nn.ModuleList, head_kwargs: Dict[str, Any], aggregation_method: str, aggregation_module: Optional[Union[nn.Module, str]] = None, remove_head: bool = False, return_encoded: bool = False, *args, **kwargs):
         super(BaseInteractionModel, self).__init__()
         self.encoders = encoders
         self.head_kwargs = head_kwargs
@@ -174,6 +174,7 @@ class BaseInteractionModel(BaseModel):
     def forward(self,  *args):
         assert len(args) == len(
             self.encoders), 'Number of inputs must be the same as the number of encoders'
+
         x = [self.encoders[i](args[i]) for i in range(len(args))]
 
         if self.return_encoded and self.head is None:
@@ -262,6 +263,7 @@ class BaseInteractionModel(BaseModel):
                 if scheduler is not None:
                     scheduler.step_update(
                         num_updates=num_updates, metric=metrics["loss"])
+        return metrics
 
     def evaluate(self, dataloader: DataLoader, device: torch.device, criterion: Callable, evaluator: Optional[Type[Evaluator]] = None, logger: Optional[Any] = None) -> Any:
         """

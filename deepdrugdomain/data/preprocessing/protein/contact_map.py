@@ -22,7 +22,7 @@ from ..utils import download_pdb
 
 @PreprocessorFactory.register('contact_map_from_pdb', 'pdb_id', 'contact_map')
 class ContactMapFromPDBPreprocessor(BasePreprocessor):
-    def __init__(self, pdb_path: str, method: str = 'c_alpha', distance_threshold: float = 3.8, normalize_distance: bool = True, **kwargs):
+    def __init__(self, pdb_path: str, method: str = 'c_alpha', distance_threshold: float = 3.8, normalize_distance: bool = True, atom_limit: int = 1000,  **kwargs):
         """
         Initializes the ContactMapFromPDBPreprocessor with the specified PDB file path and parameters for contact map calculation.
 
@@ -41,6 +41,7 @@ class ContactMapFromPDBPreprocessor(BasePreprocessor):
         self.method = method
         self.distance_threshold = distance_threshold
         self.normalize_distance = normalize_distance
+        self.atom_limit = atom_limit
         self.pdb_path = pdb_path
 
     def preprocess(self, pdb: str) -> Optional[torch.Tensor]:
@@ -80,6 +81,10 @@ class ContactMapFromPDBPreprocessor(BasePreprocessor):
                     f"Invalid method: {self.method}. Supported methods are 'c_alpha', 'all_atoms', and 'custom_method'.")
 
             num_atoms = len(atoms)
+            if num_atoms > self.atom_limit:
+                print(
+                    f'Number of atoms ({num_atoms}) exceeds the atom limit ({self.atom_limit}). Skipping...')
+                return None
             contact_map = np.zeros((num_atoms, num_atoms), dtype=np.float32)
 
             for i, atom1 in enumerate(atoms):

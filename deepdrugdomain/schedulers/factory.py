@@ -3,10 +3,8 @@ This module provides a factory pattern implementation for creating scheduler obj
 The SchedulerFactory class, enables the registration and instantiation of scheduler types.
 Schedulers are derived from a BaseScheduler class, ensuring compatibility and consistent behavior across different types
 of schedulers used for training optimization algorithms.
-
 The SchedulerFactory allows for the dynamic association between string keys and scheduler subclasses, facilitating
 easy configuration and usage in different training contexts.
-
 Example:
     >>> # Assuming you have a custom scheduler that inherits from BaseScheduler:
     >>> class MyCustomScheduler(BaseScheduler):
@@ -17,7 +15,6 @@ Example:
     >>> SchedulerFactory.register('my_custom')(MyCustomScheduler)
     >>> # Now you can create an instance of your custom scheduler:
     >>> my_scheduler = SchedulerFactory.create('my_custom', optimizer=my_optimizer)
-
 This example demonstrates how to define a new scheduler class that inherits from BaseScheduler, register it with
 the factory, and then create an instance of it using the factory's create method.
 """
@@ -35,10 +32,8 @@ T = TypeVar('T', bound=BaseScheduler)
 class SchedulerFactory(BaseFactory):
     """
     A factory class for creating instances of different types of schedulers.
-
     This class provides a mechanism for registering new scheduler classes and creating instances of those classes
     based on a provided key.
-
     Attributes:
         _registry (Dict[str, Type[BaseScheduler]]): A dictionary mapping keys to registered scheduler classes.
     """
@@ -49,10 +44,8 @@ class SchedulerFactory(BaseFactory):
     def register(cls, key: str):
         """
         A decorator function for registering a new scheduler class.
-
         Args:
             key (str): A unique key to associate with the registered scheduler class.
-
         Returns:
             A decorator function that takes a subclass of BaseScheduler as an argument and registers it with the factory.
         """
@@ -91,15 +84,12 @@ class SchedulerFactory(BaseFactory):
                updates_per_epoch: int = 0) -> Type[T]:
         """
         Create a new instance of a scheduler based on the given key.
-
         Args:
             key (str): The key of the scheduler to create.
             *args: Additional positional arguments to pass to the scheduler constructor.
             **kwargs: Additional keyword arguments to pass to the scheduler constructor.
-
         Returns:
             Type[T]: An instance of the scheduler with the given key.
-
         Raises:
             ValueError: If the given key is not registered.
         """
@@ -140,9 +130,6 @@ class SchedulerFactory(BaseFactory):
         noise_seed = noise_seed,
 
         # setup cycle args for supporting schedulers
-        cycle_mul = cycle_mul,
-        cycle_decay = cycle_decay,
-        cycle_limit = cycle_limit,
 
         kwargs = {
             'num_epochs': num_epochs,
@@ -171,15 +158,7 @@ class SchedulerFactory(BaseFactory):
             'decay_t': decay_t,
             'cooldown_t': cooldown_t,
             'warmup_lr_init': warmup_lr_init,
-            'warmup_prefix': warmup_prefix,
-            'noise_range_t': noise_range_t,
-            'noise_pct': noise_pct,
-            'noise_std': noise_std,
-            'noise_seed': noise_seed,
-            'cycle_mul': cycle_mul,
-            'cycle_decay': cycle_decay,
-            'cycle_limit': cycle_limit,
-
+            'noise_range_t': None,
         }
         scheduler_instance = cls._registry[key](optimizer, **kwargs)
 

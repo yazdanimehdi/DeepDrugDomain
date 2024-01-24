@@ -31,6 +31,7 @@ for optimal performance and accurate affinity prediction.
 from deepdrugdomain.layers import CNNEncoder
 from ..factory import ModelFactory
 import torch
+from torch import nn
 from ..interaction_model import BaseInteractionModel
 from deepdrugdomain.data import PreprocessingObject
 
@@ -47,21 +48,15 @@ class WideDTA(BaseInteractionModel):
         encoder_3 = CNNEncoder(**encoder_motif_kwargs)
         head_kwargs['input_size'] = encoder_1.get_output_size(ligand_input_dim) + encoder_2.get_output_size(
             protein_input_dim) + encoder_3.get_output_size(motifs_input_dim)
-        del encoder_1, encoder_2, encoder_3
 
         self.max_length_ligand = encoder_ligand_kwargs['input_channels']
         self.max_length_protein = encoder_protein_kwargs['input_channels']
-        encoders = [CNNEncoder, CNNEncoder, CNNEncoder]
-        encoder_kwargs = [encoder_ligand_kwargs,
-                          encoder_protein_kwargs, encoder_motif_kwargs]
+        encoders = nn.ModuleList([encoder_1, encoder_2, encoder_3])
 
         super(WideDTA, self).__init__(
-            None,
             encoders=encoders,
-            encoders_kwargs=encoder_kwargs,
             head_kwargs=head_kwargs,
             aggregation_method='concat',
-            *args,
             **kwargs
         )
 

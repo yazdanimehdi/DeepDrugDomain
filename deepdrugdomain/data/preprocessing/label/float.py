@@ -13,4 +13,4 @@ class InteractionToBinary(BasePreprocessor):
         super().__init__()
 
     def preprocess(self, data: str) -> torch.Tensor:
-        return torch.tensor([np.log10(data/1e9)])
+        return torch.tensor([np.log10(float(data)/1e9)])
