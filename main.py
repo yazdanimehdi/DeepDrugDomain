@@ -124,12 +124,12 @@ def main(args):
     # preprocesses = preprocess_drug + preprocess_protein + preprocess_label
     device = torch.device("cuda:0")
 
-    aug_model = ModelFactory.create("drugvqa")
-    aug_model.to(device)
-    aug_protein = aug_model.get_protein_encoder("pdb_id")
-    factory = AugmentedModelFactory([aug_protein])
-    model = factory.create("deepdta")
+    model = ModelFactory.create("fragxsitedti")
     model.to(device)
+    # aug_protein = aug_model.get_protein_encoder("pdb_id")
+    # factory = AugmentedModelFactory([aug_protein])
+    # model = factory.create("deepdta")
+    # model.to(device)
     preprocesses = ddd.data.PreprocessingList(model.default_preprocess(
         "SMILES", "Target_Seq", "Y"))
     dataset = ddd.data.DatasetFactory.create(
@@ -148,7 +148,7 @@ def main(args):
                                   num_workers=4, pin_memory=False, collate_fn=collate_fn)
     criterion = torch.nn.MSELoss()
     optimizer = OptimizerFactory.create(
-        "adam", model.parameters(), lr=1e-3, weight_decay=0.0)
+        "adamw", model.parameters(), lr=1e-3, weight_decay=0.0)
     scheduler = SchedulerFactory.create("cosine", optimizer, num_epochs=100, min_lr=1e-5, warmup_epochs=0, warmup_lr=1e-6)
     train_evaluator = ddd.metrics.Evaluator(
         ["mean_absolute_error", "r2_score"], threshold=0.5)

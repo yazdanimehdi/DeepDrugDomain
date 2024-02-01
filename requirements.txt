@@ -26,3 +26,4 @@ async_timeout
 torch_geometric
 deepsmiles
 beautifulsoup4
+PyTDC

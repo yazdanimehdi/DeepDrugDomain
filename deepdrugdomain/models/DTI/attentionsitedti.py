@@ -35,7 +35,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
 from deepdrugdomain.layers import LayerFactory, ActivationFactory, GraphConvEncoder, LinearHead
-from typing import Any, Callable, Dict, List, Optional, Sequence, Type
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type
 
 from deepdrugdomain.utils.weight_init import trunc_normal_
 from ..factory import ModelFactory
@@ -472,6 +472,16 @@ class AttentionSiteDTI(BaseModel):
             logger.log(metrics)
 
         return metrics
+
+    def collate(self, batch: List[Tuple[Any, Any, torch.Tensor]]) -> Tuple[Tuple[List[Any], List[Any]], torch.Tensor]:
+        """
+            Collate function for the AttentionSiteDTI model.
+        """
+        # Unpacking the batch data
+        drug, protein, targets = zip(*batch)
+        targets = torch.stack(targets, 0)
+
+        return drug, protein, targets
 
     def reset_head(self) -> None:
         self.head = LinearHead(self.embedding_dim * self.sequence_length, 1, self.head_dims,
