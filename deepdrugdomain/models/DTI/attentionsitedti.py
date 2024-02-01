@@ -472,6 +472,16 @@ class AttentionSiteDTI(BaseModel):
             logger.log(metrics)
 
         return metrics
+    
+    def collate(self, batch: List[Tuple[Any, Any, torch.Tensor]]) -> Tuple[Tuple[List[Any], List[Any]], torch.Tensor]:
+        """
+            Collate function for the DrugVQA model.
+        """
+        # Unpacking the batch data
+        drug, protein, targets = zip(*batch)
+        targets = torch.stack(targets, 0)
+
+        return drug, protein, targets
 
     def collate(self, batch: List[Tuple[Any, Any, torch.Tensor]]) -> Tuple[Tuple[List[Any], List[Any]], torch.Tensor]:
         """

@@ -222,7 +222,7 @@ class BaseInteractionModel(BaseModel):
 
                 outs = []
                 for item in range(len(x[0])):
-                    inp = [x[i][item].unsqueeze(0).to(device)
+                    inp = [x[i][item].unsqueeze(0).to(device) if type(x[i][item]) == "Tensor" else x[i][item].to(device)
                            for i in range(len(x) - 1)]
                     out = self.forward(*inp)
 
@@ -279,7 +279,7 @@ class BaseInteractionModel(BaseModel):
                 outs = []
                 with torch.no_grad():
                     for item in range(len(x[1])):
-                        inp = [x[i][item].unsqueeze(0).to(device)
+                        inp = [x[i][item].unsqueeze(0).to(device) if type(x[i][item]) == "Tensor" else x[i][item].to(device)
                                for i in range(len(x) - 1)]
                         out = self.forward(*inp)
                         if isinstance(out, tuple):

@@ -163,6 +163,20 @@ class FragXSiteDTI(BaseModel):
 
         self.apply(self._init_weights)
 
+    def get_drug_encoder(self, smile_attr):
+        return {
+            "encoder": self.drug_encoder,
+            "preprocessor": self.default_preprocess(smile_attr, None, None),
+            "output_dim": self.drug_config["lstm_hid_dim"] * 2
+        }
+
+    def get_protein_encoder(self, target_seq_attr):
+        return {
+            "encoder": self.target_encoder,
+            "preprocessor": self.default_preprocess(None, target_seq_attr, None),
+            "output_dim": self.protein_config["contact_map_out_channels"]
+        }
+
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=.02)
@@ -178,6 +192,16 @@ class FragXSiteDTI(BaseModel):
 
     def get_classifier(self):
         return self.head
+    
+    def collate(self, batch: List[Tuple[Any, Any, torch.Tensor]]) -> Tuple[Tuple[List[Any], List[Any]], torch.Tensor]:
+        """
+            Collate function for the DrugVQA model.
+        """
+        # Unpacking the batch data
+        drug, protein, targets = zip(*batch)
+        targets = torch.stack(targets, 0)
+
+        return drug, protein, targets
 
     def forward(self, drug, target):
 

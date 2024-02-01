@@ -1,6 +1,8 @@
 import argparse
 import numpy as np
 import torch
+
+from deepdrugdomain.layers import GraphConvEncoder
 from deepdrugdomain.models.DTA.attentiondta_tcbb import AttentionDTA_TCBB
 from deepdrugdomain.models.augmentation import AugmentedModelFactory
 from deepdrugdomain.optimizers.factory import OptimizerFactory
@@ -124,7 +126,36 @@ def main(args):
     # preprocesses = preprocess_drug + preprocess_protein + preprocess_label
     device = torch.device("cuda:0")
 
-    model = ModelFactory.create("fragxsitedti")
+    # aug_model = ModelFactory.create("drugvqa")
+    # aug_model.to(device)
+    # aug_protein = aug_model.get_drug_encoder("SMILES")
+    aug_preprocess = ddd.data.PreprocessingObject(attribute="SMILES", from_dtype="smile", to_dtype="graph", preprocessing_settings={
+        "fragment": False, "node_featurizer":  feat, "consider_hydrogen": False, "consider_hydrogen": True}, in_memory=True, online=False)
+    aug_encoder = GraphConvEncoder(["dgl_tag", "dgl_tag", "dgl_tag"], 74, 45, [50, 45], "dgl_maxpool",
+                                   {}, [
+                {
+                    "k": 8
+                },
+                {
+                    "k": 8
+                },
+                {
+                    "k": 8
+                }
+            ],[
+                0.2,
+                0.2,
+                0.2
+            ], [True, True, True]).cuda()
+    aug_output_size = 45
+
+
+    factory = AugmentedModelFactory([{
+        "encoder": aug_encoder,
+        "preprocessor": aug_preprocess,
+        "output_dim": aug_output_size
+    }])
+    model = factory.create("deepdta")
     model.to(device)
     # aug_protein = aug_model.get_protein_encoder("pdb_id")
     # factory = AugmentedModelFactory([aug_protein])
@@ -140,7 +171,7 @@ def main(args):
     collate_fn = model.collate
 
     data_loader_train = DataLoader(
-        datasets[0], batch_size=32, shuffle=True, num_workers=4, pin_memory=True, drop_last=True, collate_fn=collate_fn)
+        datasets[0], batch_size=64, shuffle=True, num_workers=4, pin_memory=True, drop_last=True, collate_fn=collate_fn)
 
     data_loader_val = DataLoader(datasets[1], drop_last=False, batch_size=32,
                                  num_workers=4, pin_memory=False, collate_fn=collate_fn)
@@ -148,14 +179,14 @@ def main(args):
                                   num_workers=4, pin_memory=False, collate_fn=collate_fn)
     criterion = torch.nn.MSELoss()
     optimizer = OptimizerFactory.create(
-        "adamw", model.parameters(), lr=1e-3, weight_decay=0.0)
+        "adam", model.parameters(), lr=1e-4, weight_decay=0.0)
     scheduler = SchedulerFactory.create("cosine", optimizer, num_epochs=100, min_lr=1e-5, warmup_epochs=0, warmup_lr=1e-6)
     train_evaluator = ddd.metrics.Evaluator(
         ["mean_absolute_error", "r2_score"], threshold=0.5)
     test_evaluator = ddd.metrics.Evaluator(
         ["mean_absolute_error", "r2_score", "concordance_index"], threshold=0.5)
     epochs = 100
-    accum_iter = 2
+    accum_iter = 1
     print(model.evaluate(data_loader_val, device,
           criterion, evaluator=test_evaluator))
     for epoch in range(epochs):

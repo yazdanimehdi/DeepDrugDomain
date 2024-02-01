@@ -32,9 +32,9 @@
             },
             "head_config": {
                 "output_size": 1,
-                "hidden_sizes": [1024, 1024, 512], 
-                "activations": ["relu", "relu", "relu", null],
-                "dropouts": [0, 0.1, 0.1, 0.1], 
+                "hidden_sizes": [2048, 1024, 1024, 512],
+                "activations": ["relu", "relu",  "relu", "relu", null],
+                "dropouts": [0, 0.1, 0.1, 0.1, 0],
                 "normalization": null
             }
         }

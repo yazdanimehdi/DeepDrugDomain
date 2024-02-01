@@ -33,9 +33,10 @@ class AugmentedModel(BaseInteractionModel):
         self.preprocessors = preprocessors
         self.custom_collate = custom_collate
 
-    def forward(self, augmented_inputs: List[torch.Tensor], *args):
+    def forward(self, augmented_inputs: List[Any], *args):
         original_output = self.original_model.forward(*args)
-
+        augmented_inputs = [augmented_inputs] if not isinstance(
+            augmented_inputs, list) else augmented_inputs
         encoded_augmented_inputs = [self.encoders[i](
             augmented_inputs[i]) for i in range(len(augmented_inputs))]
         encoded = encoded_augmented_inputs + [original_output]
