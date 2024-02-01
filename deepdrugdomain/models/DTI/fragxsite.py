@@ -307,6 +307,8 @@ class FragXSiteDTI(BaseModel):
                 if scheduler is not None:
                     scheduler.step_update(
                         num_updates=num_updates, metric=metrics["loss"])
+                    
+            return metrics
 
     def evaluate(self, dataloader: DataLoader, device: torch.device, criterion: Callable, evaluator: Optional[Type[Evaluator]] = None, logger: Optional[Any] = None) -> Any:
 
