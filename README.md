@@ -282,6 +282,9 @@ For now please read the docstring inside the module for more information.
 We welcome contributions to DeepDrugDomain! Please check out our [Contribution Guidelines](CONTRIBUTING.md) for more details on how to contribute.
 
 ## Citation
+### BibTeX
+
+```bibtex
 @misc{rw2019timm,
   author = {Mehdi Yazdani-Jahromi},
   title = {From Data to Discovery: The DeepDrugDomain Framework for Predicting Drug-Target Interactions and Affinity},
@@ -291,3 +294,8 @@ We welcome contributions to DeepDrugDomain! Please check out our [Contribution G
   doi = {10.5281/zenodo.13974011},
   howpublished = {\url{https://github.com/yazdanimehdi/DeepDrugDomain}}
 }
+```
+
+### Latest DOI
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13974011.svg)](https://doi.org/10.5281/zenodo.13974011)
+
