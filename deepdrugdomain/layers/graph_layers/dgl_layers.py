@@ -120,7 +120,7 @@ class GAT(nn.Module):
         features = self.dropout(features)
 
         new_g = g
-        new_g.ndata['h'] = features
+        new_g.ndata['h'] = torch.mean(features, dim=1)
 
         return new_g
 

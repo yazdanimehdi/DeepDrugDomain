@@ -234,7 +234,6 @@ class BaseInteractionModel(BaseModel):
                 out = torch.stack(outs, dim=0).squeeze(1)
                 target = x[-1].to(
                     device).view(-1, 1).to(torch.float)
-
                 loss = criterion(out, target)
                 loss /= accum_steps
 

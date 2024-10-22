@@ -85,7 +85,7 @@ class GraphFromSmilePreprocessor(BasePreprocessor):
                     return None
                 smile_graphs = [smiles_to_bigraph(
                     f, add_self_loop=True, node_featurizer=self.node_featurizer, edge_featurizer=self.edge_featurizer) for f in frags]
-                constructed_graphs = dgl.batch(smile_graphs)
+                constructed_graphs = smile_graphs
 
             except Exception as e:
                 constructed_graphs = None
@@ -109,7 +109,13 @@ class GraphFromSmilePreprocessor(BasePreprocessor):
         return constructed_graphs
 
     def save_data(self, data: dgl.DGLGraph, path: str) -> None:
-        dgl.save_graphs(path, [data])
+        if not isinstance(data, dgl.DGLGraph):
+            super().save_data(data, path)
+        else:
+            dgl.save_graphs(path, [data])
 
     def load_data(self, path: str) -> dgl.DGLGraph:
-        return dgl.load_graphs(path)[0][0]
+        if self.fragment:
+            return super().load_data(path)
+        else:
+            return dgl.load_graphs(path)[0][0]

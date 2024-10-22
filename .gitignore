@@ -180,3 +180,4 @@ drug_b.py
 **/**/pdb/
 *.pdb
 .VSCodeCounter/
+*.pth
