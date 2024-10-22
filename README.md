@@ -285,7 +285,7 @@ We welcome contributions to DeepDrugDomain! Please check out our [Contribution G
 ### BibTeX
 
 ```bibtex
-@misc{rw2019timm,
+@misc{my2024ddd,
   author = {Mehdi Yazdani-Jahromi},
   title = {From Data to Discovery: The DeepDrugDomain Framework for Predicting Drug-Target Interactions and Affinity},
   year = {2024},
