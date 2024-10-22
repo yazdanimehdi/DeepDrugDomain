@@ -282,4 +282,12 @@ For now please read the docstring inside the module for more information.
 We welcome contributions to DeepDrugDomain! Please check out our [Contribution Guidelines](CONTRIBUTING.md) for more details on how to contribute.
 
 ## Citation
-We don't have a paper yet!
+@misc{rw2019timm,
+  author = {Mehdi Yazdani-Jahromi},
+  title = {From Data to Discovery: The DeepDrugDomain Framework for Predicting Drug-Target Interactions and Affinity},
+  year = {2024},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  doi = {10.5281/zenodo.13974011},
+  howpublished = {\url{https://github.com/yazdanimehdi/DeepDrugDomain}}
+}
